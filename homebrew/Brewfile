@@ -1,4 +1,5 @@
 brew "atuin", restart_service: :changed
+brew "arc"
 brew "btop"
 brew "docker"
 brew "neovim"
