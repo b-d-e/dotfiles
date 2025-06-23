@@ -2,6 +2,7 @@ brew "atuin", restart_service: :changed
 brew "btop"
 brew "docker"
 brew "git-lfs"
+brew "neofetch"
 brew "neovim"
 brew "node"
 brew "openconnect"

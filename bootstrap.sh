@@ -143,5 +143,13 @@ else
   echo "Please install VS Code and ensure 'code' is in your PATH to install extensions."
 fi
 
+# append neofetch to end of .zshrc
+echo "Appending neofetch to .zshrc..."
+if ! grep -q "neofetch" ~/.zshrc; then
+  echo "neofetch" >> ~/.zshrc
+else
+  echo "neofetch already exists in .zshrc, skipping."
+fi
+
 echo "All done!"
 echo "Please restart your terminal to see the changes."
