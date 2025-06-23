@@ -1,0 +1,22 @@
+# ~/.dotfiles/homebrew/Brewfile.linux
+
+# Command-line tools and libraries that are cross-platform
+brew "atuin", restart_service: :changed
+brew "btop"
+brew "docker"
+brew "git-lfs"
+brew "neovim"
+brew "node"
+brew "openconnect"
+brew "tmux"
+brew "tpm"
+brew "uv"
+brew "wireguard-tools"
+brew "yq"
+brew "zola"
+
+# Note: Cask applications are macOS-specific and are excluded from Brewfile.linux.
+# For GUI applications like Chrome, VS Code, Spotify, Slack, Obsidian, etc.,
+# you will need to install them using Ubuntu's native package managers (apt, snap, flatpak)
+# or by downloading their .deb packages.
+# The 'vscode' entries are VS Code extensions and are installed separately by the bootstrap.sh script.

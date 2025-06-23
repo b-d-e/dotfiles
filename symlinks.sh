@@ -1,4 +1,5 @@
 ln -s -f ~/.dotfiles/homebrew/Brewfile ~/Brewfile
+ln -s -f ~/.dotfiles/homebrew/Brewfile.linux ~/Brewfile.linux
 ln -s -f  ~/.dotfiles/git/.gitconfig ~/.gitconfig
 ln -s -f ~/.dotfiles/tmux/.tmux.conf ~/.tmux.conf
 ln -s -f ~/.dotfiles/zsh/.zshrc ~/.zshrc
