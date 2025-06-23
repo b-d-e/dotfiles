@@ -6,7 +6,7 @@
 
 Installed:
 - `zsh` shell
-- `homebrew` (if on Mac)
+- `homebrew` 
 - `github` creds setup
 
 ### Installation
