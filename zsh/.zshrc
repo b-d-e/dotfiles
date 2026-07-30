@@ -72,6 +72,17 @@ ZSH_THEME="robbyrussell"
 # Add wisely, as too many plugins slow down shell startup.
 plugins=(git)
 
+# Put brew on PATH early (macOS: /opt/homebrew or /usr/local; Linux: linuxbrew),
+# then paint the system-info banner up front so it appears immediately while
+# oh-my-zsh finishes loading below (oh-my-zsh's compinit is ~200ms; fastfetch ~10ms).
+for _brew in /home/linuxbrew/.linuxbrew/bin/brew /opt/homebrew/bin/brew /usr/local/bin/brew; do
+  [[ -x $_brew ]] && eval "$("$_brew" shellenv)" && break
+done
+unset _brew
+
+# system info banner (config: ~/.config/fastfetch/config.jsonc)
+command -v fastfetch >/dev/null && fastfetch
+
 source $ZSH/oh-my-zsh.sh
 
 # User configuration
@@ -102,7 +113,9 @@ source $ZSH/oh-my-zsh.sh
 # Example aliases
 # alias zshconfig="mate ~/.zshrc"
 # alias ohmyzsh="mate ~/.oh-my-zsh"
-eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"
+alias vim="nvim"
 
+# Added by LM Studio CLI (lms)
+export PATH="$PATH:/Users/shil6499/.lmstudio/bin"
+# End of LM Studio CLI section
 
-neofetch

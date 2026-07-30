@@ -36,7 +36,7 @@ fi
 
 # Install Homebrew and packages based on OS
 if [ "$OS" = "Darwin" ]; then
-  echo "Running on macOS. Installing brew packages and casks from Brewfile.macos..."
+  echo "Running on macOS. Installing brew packages and casks from Brewfile..."
   # Check for Homebrew installation on macOS
   if ! command -v brew >/dev/null 2>&1; then
     echo "Homebrew not found. Installing Homebrew..."
@@ -44,7 +44,7 @@ if [ "$OS" = "Darwin" ]; then
     # Add Homebrew to PATH for the current session (will be permanent after restart)
     eval "$(/opt/homebrew/bin/brew shellenv)"
   fi
-  brew bundle --file=~/.dotfiles/homebrew/Brewfile.macos
+  brew bundle --file=~/.dotfiles/homebrew/Brewfile
 elif [ "$OS" = "Linux" ]; then
   echo "Running on Linux. Installing brew packages from Brewfile.linux..."
 
@@ -143,12 +143,42 @@ else
   echo "Please install VS Code and ensure 'code' is in your PATH to install extensions."
 fi
 
-# append neofetch to end of .zshrc
-echo "Appending neofetch to .zshrc..."
-if ! grep -q "neofetch" ~/.zshrc; then
-  echo "neofetch" >> ~/.zshrc
-else
-  echo "neofetch already exists in .zshrc, skipping."
+# fastfetch runs on shell startup via the tracked zsh/.zshrc (symlinked above),
+# and its config lives in fastfetch/config.jsonc (symlinked to ~/.config/fastfetch).
+# fish and nushell get their configs + starship/atuin wiring from symlinks.sh.
+
+# Nerd Font (needed for the starship prompt glyphs).
+# macOS installs it via the Brewfile cask; Linux has no font cask, so fetch it.
+if [ "$OS" = "Linux" ]; then
+  if ! fc-list 2>/dev/null | grep -qi "JetBrainsMono Nerd Font"; then
+    echo "Installing JetBrainsMono Nerd Font..."
+    mkdir -p ~/.local/share/fonts
+    tmp_font_zip="$(mktemp -d)/JetBrainsMono.zip"
+    if curl -fsSL -o "$tmp_font_zip" \
+        "https://github.com/ryanoasis/nerd-fonts/releases/latest/download/JetBrainsMono.zip"; then
+      unzip -o "$tmp_font_zip" -d ~/.local/share/fonts >/dev/null
+      fc-cache -f >/dev/null 2>&1 || true
+      echo "JetBrainsMono Nerd Font installed. Select it in your terminal's font settings."
+    else
+      echo "Warning: could not download the Nerd Font. Install one manually for starship glyphs."
+    fi
+  fi
+fi
+
+# Register fish and nushell as valid login shells, then make fish the default.
+# (zsh config stays in place as a fallback: `chsh -s "$(command -v zsh)"`.)
+for candidate in fish nu; do
+  sh_path="$(command -v "$candidate" 2>/dev/null)"
+  if [ -n "$sh_path" ] && ! grep -qxF "$sh_path" /etc/shells 2>/dev/null; then
+    echo "Registering $sh_path in /etc/shells (needs sudo)..."
+    echo "$sh_path" | sudo tee -a /etc/shells >/dev/null
+  fi
+done
+
+fish_path="$(command -v fish 2>/dev/null)"
+if [ -n "$fish_path" ] && [ "$SHELL" != "$fish_path" ]; then
+  echo "Setting fish as the default login shell..."
+  chsh -s "$fish_path" || echo "Warning: chsh failed; run 'chsh -s $fish_path' manually."
 fi
 
 echo "All done!"

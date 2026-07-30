@@ -1,0 +1,49 @@
+# ~/.dotfiles/starship.toml  (symlinked to ~/.config/starship.toml)
+# Shared prompt across zsh, fish, and nushell. Requires a Nerd Font
+# (font-jetbrains-mono-nerd-font in the Brewfile) selected in your terminal.
+
+"$schema" = 'https://starship.rs/config-schema.json'
+
+# Blank line before each prompt; two-line prompt with a clean arrow.
+add_newline = true
+format = """
+$directory\
+$git_branch\
+$git_status\
+$python\
+$rust\
+$nodejs\
+$cmd_duration\
+$line_break\
+$character"""
+
+[character]
+success_symbol = "[❯](bold green)"
+error_symbol = "[❯](bold red)"
+vimcmd_symbol = "[❮](bold green)"
+
+[directory]
+truncation_length = 3
+truncate_to_repo = true
+style = "bold cyan"
+
+[git_branch]
+symbol = " "
+style = "bold purple"
+
+[git_status]
+style = "bold yellow"
+
+[cmd_duration]
+min_time = 500
+format = "[$duration]($style) "
+style = "bold yellow"
+
+[python]
+symbol = " "
+
+[rust]
+symbol = " "
+
+[nodejs]
+symbol = " "

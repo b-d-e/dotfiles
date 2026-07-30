@@ -1,0 +1,6 @@
+# ~/.dotfiles/ghostty/config  (symlinked to ~/.config/ghostty/config)
+
+# Nerd Font so the starship prompt glyphs render (installed via the Brewfile
+# on macOS / auto-downloaded on Linux by bootstrap.sh).
+font-family = JetBrainsMono Nerd Font
+font-size = 14
