@@ -1,0 +1,78 @@
+name: Bootstrap smoke
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  bootstrap-smoke:
+    name: bootstrap (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-latest
+          - macos-latest
+
+    env:
+      CI: "1"
+      NONINTERACTIVE: "1"
+      RUN_PRIVILEGED: "0"
+      SKIP_PREREQUISITES: "1"
+      BOOTSTRAP_SMOKE: "1"
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Prepare isolated HOME
+        shell: bash
+        run: |
+          set -euo pipefail
+          HOME_DIR="${RUNNER_TEMP}/bootstrap-home"
+          DOTFILES_DIR="${HOME_DIR}/.dotfiles"
+
+          rm -rf "${HOME_DIR}"
+          mkdir -p "${DOTFILES_DIR}"
+          cp -a "${GITHUB_WORKSPACE}"/. "${DOTFILES_DIR}/"
+
+          {
+            echo "HOME=${HOME_DIR}"
+            echo "DOTFILES_DIR=${DOTFILES_DIR}"
+          } >> "${GITHUB_ENV}"
+
+          echo "Prepared HOME=${HOME_DIR}"
+
+      - name: Run bootstrap (first pass)
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash "${DOTFILES_DIR}/bootstrap.sh"
+
+      - name: Smoke assertions
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          test -L "${HOME}/.gitconfig"
+          test -L "${HOME}/.zshrc"
+          test -L "${HOME}/.zshenv"
+          test -L "${HOME}/.tmux.conf"
+          test -L "${HOME}/.config/nvim"
+          test -L "${HOME}/.config/starship.toml"
+          test -L "${HOME}/.config/fish/config.fish"
+
+          test "$(readlink "${HOME}/.gitconfig")" = "${DOTFILES_DIR}/git/.gitconfig"
+          test "$(readlink "${HOME}/.zshrc")" = "${DOTFILES_DIR}/zsh/.zshrc"
+
+          echo "Smoke assertions passed."
+
+      - name: Run bootstrap again (idempotency)
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash "${DOTFILES_DIR}/bootstrap.sh"

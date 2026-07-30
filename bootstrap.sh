@@ -1,16 +1,29 @@
 #!/bin/bash
 
+set -euo pipefail
+
+DOTFILES_DIR="${DOTFILES_DIR:-$HOME/.dotfiles}"
+RUN_PRIVILEGED="${RUN_PRIVILEGED:-}"
+
+if [ -z "$RUN_PRIVILEGED" ]; then
+  if [ "${CI:-0}" = "1" ] || [ "${NONINTERACTIVE:-0}" = "1" ]; then
+    RUN_PRIVILEGED=0
+  else
+    RUN_PRIVILEGED=1
+  fi
+fi
+
 echo "Setting up new machine..."
 
 # get system info from utils/system_info.sh and assign to variables
 echo "Getting system info..."
 # Ensure these scripts are executed with bash for proper syntax support
-if ! OS=$(bash ~/.dotfiles/utils/system_info.sh | awk '{print $1}'); then
+if ! OS=$(bash "$DOTFILES_DIR/utils/system_info.sh" | awk '{print $1}'); then
   echo "Error: Could not determine OS from system_info.sh"
   exit 1
 fi
 
-if ! ARCH=$(bash ~/.dotfiles/utils/system_info.sh | awk '{print $2}'); then
+if ! ARCH=$(bash "$DOTFILES_DIR/utils/system_info.sh" | awk '{print $2}'); then
   echo "Error: Could not determine Architecture from system_info.sh"
   exit 1
 fi
@@ -19,18 +32,35 @@ echo "Running on $OS $ARCH"
 
 # Run validation checks (this assumes pre-requisites.sh is in the .dotfiles directory)
 echo "Running pre-requisite validation checks..."
-# Ensure pre-requisites.sh is executed with bash
-if ! bash ~/.dotfiles/pre-requisites.sh; then
-  echo "Error: Pre-requisite validation failed!"
-  exit 1
+if [ "${SKIP_PREREQUISITES:-0}" = "1" ] || [ "${CI:-0}" = "1" ]; then
+  echo "Skipping pre-requisite validation checks."
+else
+  # Ensure pre-requisites.sh is executed with bash
+  if ! bash "$DOTFILES_DIR/pre-requisites.sh"; then
+    echo "Error: Pre-requisite validation failed!"
+    exit 1
+  fi
+fi
+
+if [ "${BOOTSTRAP_SMOKE:-0}" = "1" ]; then
+  echo "BOOTSTRAP_SMOKE=1, running user-level symlink setup only."
+  echo "Creating symlinks..."
+  bash "$DOTFILES_DIR/symlinks.sh"
+  echo "All done!"
+  echo "Please restart your terminal to see the changes."
+  exit 0
 fi
 
 
 echo "Installing oh-my-zsh..."
 # Install oh-my-zsh if not already installed
 if [ ! -d "$HOME/.oh-my-zsh" ]; then
-  # Install oh-my-zsh using the official installer script
-  sh -c "$(curl -fsSL https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh)"
+  if command -v zsh >/dev/null 2>&1; then
+    # Install oh-my-zsh using the official installer script
+    RUNZSH=no CHSH=no sh -c "$(curl -fsSL https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh)" "" --unattended
+  else
+    echo "zsh is not installed; skipping oh-my-zsh installation."
+  fi
 fi
 
 
@@ -39,29 +69,45 @@ if [ "$OS" = "Darwin" ]; then
   echo "Running on macOS. Installing brew packages and casks from Brewfile..."
   # Check for Homebrew installation on macOS
   if ! command -v brew >/dev/null 2>&1; then
-    echo "Homebrew not found. Installing Homebrew..."
-    /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
-    # Add Homebrew to PATH for the current session (will be permanent after restart)
-    eval "$(/opt/homebrew/bin/brew shellenv)"
+    if [ "$RUN_PRIVILEGED" = "1" ]; then
+      echo "Homebrew not found. Installing Homebrew..."
+      /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+      # Add Homebrew to PATH for the current session (will be permanent after restart)
+      eval "$(/opt/homebrew/bin/brew shellenv)"
+    else
+      echo "Homebrew not found and RUN_PRIVILEGED=0; skipping Homebrew install."
+    fi
   fi
-  brew bundle --file=~/.dotfiles/homebrew/Brewfile
+  if command -v brew >/dev/null 2>&1; then
+    brew bundle --file="$DOTFILES_DIR/homebrew/Brewfile"
+  else
+    echo "Skipping brew bundle because Homebrew is unavailable."
+  fi
 elif [ "$OS" = "Linux" ]; then
   echo "Running on Linux. Installing brew packages from Brewfile.linux..."
 
   # Install Homebrew on Linux if not already installed
   if ! command -v brew >/dev/null 2>&1; then
-    echo "Homebrew (Linuxbrew) not found. Installing Homebrew..."
-    sudo apt update # Ensure apt is up-to-date for dependencies
-    sudo apt install build-essential procps curl file git -y # Essential dependencies for Homebrew
-    /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
-    # Add Homebrew to PATH for the current session (will be permanent after restart)
-    # Adjust path if different, /home/linuxbrew/.linuxbrew is common
-    eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"
-    # Add to shell config for future sessions (e.g., .bashrc or .zshrc)
-    echo 'eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"' >> ~/.zshrc # Assuming Zsh is preferred
-    # Or for bash: echo 'eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"' >> ~/.bashrc
+    if [ "$RUN_PRIVILEGED" = "1" ]; then
+      echo "Homebrew (Linuxbrew) not found. Installing Homebrew..."
+      sudo apt update # Ensure apt is up-to-date for dependencies
+      sudo apt install build-essential procps curl file git -y # Essential dependencies for Homebrew
+      /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+      # Add Homebrew to PATH for the current session (will be permanent after restart)
+      # Adjust path if different, /home/linuxbrew/.linuxbrew is common
+      eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"
+      # Add to shell config for future sessions (e.g., .bashrc or .zshrc)
+      echo 'eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"' >> ~/.zshrc # Assuming Zsh is preferred
+      # Or for bash: echo 'eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"' >> ~/.bashrc
+    else
+      echo "Homebrew not found and RUN_PRIVILEGED=0; skipping Homebrew install."
+    fi
   fi
-  brew bundle --file=~/.dotfiles/homebrew/Brewfile.linux
+  if command -v brew >/dev/null 2>&1; then
+    brew bundle --file="$DOTFILES_DIR/homebrew/Brewfile.linux"
+  else
+    echo "Skipping brew bundle because Homebrew is unavailable."
+  fi
 
   echo "Installing Linux-specific GUI applications and other tools..."
   # IMPORTANT: Cask applications are macOS-specific.
@@ -101,7 +147,7 @@ curl https://sh.rustup.rs -sSf | sh -s -- -y
 # symlinks
 echo "Creating symlinks..."
 # Ensure symlinks.sh is executed with bash
-bash ~/.dotfiles/symlinks.sh
+bash "$DOTFILES_DIR/symlinks.sh"
 
 # AstroNvim setup (commented out as per your original script's comment)
 # If you want to automate AstroNvim setup, uncomment and ensure it aligns with your dotfiles
@@ -167,18 +213,22 @@ fi
 
 # Register fish and nushell as valid login shells, then make fish the default.
 # (zsh config stays in place as a fallback: `chsh -s "$(command -v zsh)"`.)
-for candidate in fish nu; do
-  sh_path="$(command -v "$candidate" 2>/dev/null)"
-  if [ -n "$sh_path" ] && ! grep -qxF "$sh_path" /etc/shells 2>/dev/null; then
-    echo "Registering $sh_path in /etc/shells (needs sudo)..."
-    echo "$sh_path" | sudo tee -a /etc/shells >/dev/null
-  fi
-done
+if [ "$RUN_PRIVILEGED" = "1" ]; then
+  for candidate in fish nu; do
+    sh_path="$(command -v "$candidate" 2>/dev/null)"
+    if [ -n "$sh_path" ] && ! grep -qxF "$sh_path" /etc/shells 2>/dev/null; then
+      echo "Registering $sh_path in /etc/shells (needs sudo)..."
+      echo "$sh_path" | sudo tee -a /etc/shells >/dev/null
+    fi
+  done
 
-fish_path="$(command -v fish 2>/dev/null)"
-if [ -n "$fish_path" ] && [ "$SHELL" != "$fish_path" ]; then
-  echo "Setting fish as the default login shell..."
-  chsh -s "$fish_path" || echo "Warning: chsh failed; run 'chsh -s $fish_path' manually."
+  fish_path="$(command -v fish 2>/dev/null)"
+  if [ -n "$fish_path" ] && [ "$SHELL" != "$fish_path" ]; then
+    echo "Setting fish as the default login shell..."
+    chsh -s "$fish_path" || echo "Warning: chsh failed; run 'chsh -s $fish_path' manually."
+  fi
+else
+  echo "RUN_PRIVILEGED=0, skipping login shell registration and chsh."
 fi
 
 echo "All done!"
