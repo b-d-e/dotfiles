@@ -46,16 +46,19 @@ check_homebrew() {
   fi
 }
 
-# Function to check if the shell is Zsh
-check_zsh() {
-  echo "Checking for Zsh shell..."
-  # Using simple string comparison for SHELL variable
-  if [[ "$SHELL" == *"/zsh"* ]]; then
-    echo "Zsh shell is being used."
-  else
-    echo "Error: This script requires Zsh shell. Please switch to Zsh and try again."
-    exit 1
-  fi
+# Function to check the login shell is one we configure (zsh or fish).
+# fish becomes the default after the first bootstrap; zsh stays as a fallback.
+check_shell() {
+  echo "Checking login shell..."
+  case "$SHELL" in
+    */zsh|*/fish)
+      echo "Supported shell in use: $SHELL"
+      ;;
+    *)
+      echo "Warning: login shell is '$SHELL'; expected zsh or fish."
+      echo "Continuing anyway (bootstrap sets fish as default at the end)."
+      ;;
+  esac
 }
 
 # Function to check all pre-requisites before proceeding
@@ -68,8 +71,8 @@ validate_pre_requisites() {
   # Check if Homebrew is installed (conditional on OS)
   check_homebrew
 
-  # Check if the shell is Zsh
-  check_zsh
+  # Check the login shell is one we configure
+  check_shell
 
   echo "All pre-requisites validated successfully."
 }

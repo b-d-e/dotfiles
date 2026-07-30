@@ -1,0 +1,25 @@
+{
+  "$schema": "https://github.com/fastfetch-cli/fastfetch/raw/dev/doc/json_schema.json",
+  // Trimmed for fast startup (~35-40ms). The expensive modules on macOS
+  // (display, gpu, terminalfont, wmtheme, font) are omitted deliberately.
+  // Cross-platform: every module here works on both macOS and Linux.
+  "modules": [
+    "title",
+    "separator",
+    "os",
+    "host",
+    "kernel",
+    "uptime",
+    "packages",
+    "terminal",
+    "cpu",
+    "memory",
+    "swap",
+    "disk",
+    "localip",
+    "battery",
+    "locale",
+    "break",
+    "colors"
+  ]
+}
