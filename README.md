@@ -13,7 +13,7 @@ Installed:
 
 ```bash
 git clone --recursive git@github.com:b-d-e/dotfiles.git ~/.dotfiles
-sh bootstrap.sh
+cd .dotfiles && sh bootstrap.sh
 ```
 
 ### Shells
