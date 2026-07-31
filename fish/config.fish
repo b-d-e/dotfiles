@@ -35,6 +35,8 @@ if status is-interactive
     # Shell integrations (only if the tool is installed).
     command -q starship && starship init fish | source
     command -q zoxide && zoxide init fish | source
+    # fzf: Ctrl-R history, Ctrl-T files, Alt-C cd. Also backs zoxide's `zi`.
+    command -q fzf && fzf --fish | source
     # atuin's fish init still emits the pre-fish-4 `bind -k up` syntax; rewrite
     # it to `bind up` on the fly. No-op once atuin fixes it upstream.
     command -q atuin && atuin init fish | string replace -ra -- ' -k (\S+)' ' $1' | source

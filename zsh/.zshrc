@@ -127,6 +127,9 @@ command -v bat >/dev/null && alias cat="bat"
 # zoxide: smarter `cd` (adds `z` / `zi`).
 command -v zoxide >/dev/null && eval "$(zoxide init zsh)"
 
+# fzf: Ctrl-R history, Ctrl-T files, Alt-C cd. Also backs zoxide's `zi`.
+command -v fzf >/dev/null && source <(fzf --zsh)
+
 # Added by LM Studio CLI (lms)
 export PATH="$PATH:/Users/shil6499/.lmstudio/bin"
 # End of LM Studio CLI section

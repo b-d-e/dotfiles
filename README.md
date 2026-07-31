@@ -39,4 +39,6 @@ Shared across all three shells (installed via the Brewfiles):
 - [`eza`](https://github.com/eza-community/eza) — modern `ls` (`ls`/`ll`/`la`/`lt`, with icons + git status)
 - [`bat`](https://github.com/sharkdp/bat) — `cat` with syntax highlighting
 - [`ripgrep`](https://github.com/BurntSushi/ripgrep) — fast recursive search (`rg`)
+- [`fzf`](https://github.com/junegunn/fzf) — fuzzy finder: `Ctrl-R` history, `Ctrl-T` files, `Alt-C` cd (also backs zoxide's `zi`)
+- [`fd`](https://github.com/sharkdp/fd) — fast, friendly `find`
 
