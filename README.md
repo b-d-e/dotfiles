@@ -2,6 +2,8 @@
 
 `b-d-e`'s dotfiles
 
+![ghostty running fish with the fastfetch banner and starship prompt on the Catppuccin Latte theme](assets/ghostty.png)
+
 ### Pre-Requisites
 
 Installed:
