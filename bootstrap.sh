@@ -98,6 +98,12 @@ curl https://sh.rustup.rs -sSf | sh -s -- -y
 # Source the cargo environment for the current session
 . "$HOME/.cargo/env"
 
+# Ensure git submodules are present (e.g. the CLAUDE.md global-memory repo).
+# No-op if already initialised or if cloned with --recursive.
+echo "Initialising git submodules..."
+git -C ~/.dotfiles submodule update --init --recursive || \
+  echo "Warning: submodule init failed; ~/.claude/CLAUDE.md may be missing."
+
 # symlinks
 echo "Creating symlinks..."
 # Ensure symlinks.sh is executed with bash

@@ -20,6 +20,10 @@ cd .dotfiles && sh bootstrap.sh
 
 You may be asked to enter your password several times.
 
+The `--recursive` clone pulls in the [`CLAUDE.md`](https://github.com/b-d-e/CLAUDE.md)
+submodule (global Claude Code memory), which `symlinks.sh` links to
+`~/.claude/CLAUDE.md`.
+
 ### Shells
 
 `fish` is the default login shell (bootstrap runs `chsh`). `zsh` and `nushell`

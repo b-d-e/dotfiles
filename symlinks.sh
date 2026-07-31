@@ -9,6 +9,14 @@ ln -s -f "$DOTFILES/homebrew/Brewfile.linux" ~/Brewfile.linux
 ln -s -f "$DOTFILES/git/.gitconfig" ~/.gitconfig
 ln -s -f "$DOTFILES/tmux/.tmux.conf" ~/.tmux.conf
 
+# Claude Code global memory (the CLAUDE.md submodule -> ~/.claude/CLAUDE.md).
+if [ -f "$DOTFILES/claude/CLAUDE.md" ]; then
+  mkdir -p ~/.claude
+  ln -s -f "$DOTFILES/claude/CLAUDE.md" ~/.claude/CLAUDE.md
+else
+  echo "claude/ submodule not populated; run 'git submodule update --init' then re-run."
+fi
+
 # zsh (still the login shell; fish/nushell are opt-in via `fish`/`nu`)
 ln -s -f "$DOTFILES/zsh/.zshrc" ~/.zshrc
 ln -s -f "$DOTFILES/zsh/.zshenv" ~/.zshenv
