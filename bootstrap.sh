@@ -19,9 +19,13 @@ if [ "$NO_SUDO" -eq 0 ] && ! command -v sudo >/dev/null 2>&1; then
 fi
 [ "$NO_SUDO" -eq 1 ] && echo "Running in --no-sudo (userspace) mode."
 
-# Make fish the interactive shell without chsh/root: append a guard to the
+# Make fish the interactive shell without chsh/root: append a guard to the bash
 # login rc files that exec's fish for interactive sessions once it's on PATH.
-# Skips ~/.zshrc on purpose (that's our tracked fallback config). Idempotent.
+# Skips ~/.zshrc on purpose — it's a symlink to our tracked zsh/.zshrc (appending
+# would write through and dirty the repo), and that tracked file carries its own
+# copy of this guard, so a zsh login shell (e.g. `ssh <managed-host>`) reaches
+# fish too. Between the two, fish launches from either a bash or zsh login shell
+# even when chsh can't change the login shell. Idempotent.
 add_fish_exec_guard() {
   local marker="__DOTFILES_FISH_LAUNCHED" block rc
   block="$(cat <<'EOS'

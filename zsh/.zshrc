@@ -1,3 +1,19 @@
+# >>> dotfiles: launch fish for interactive shells (no chsh needed) >>>
+# fish is the intended interactive shell, but on managed/enterprise hosts chsh
+# often can't change the login shell from zsh to fish. This tracked zshrc is
+# symlinked to ~/.zshrc by symlinks.sh, so a zsh *login* shell (e.g. `ssh rod`)
+# reaches here and hands off to fish when it's installed. zsh remains the
+# fallback if fish is absent. Runs before oh-my-zsh so the handoff is fast.
+# (Mirrors the bash rc-guard in bootstrap.sh's add_fish_exec_guard.)
+if [[ -z "${__DOTFILES_FISH_LAUNCHED:-}" ]] && [[ -o interactive ]]; then
+  export PATH="$HOME/.local/bin:$HOME/.cargo/bin:$PATH"
+  if [[ -z "${FISH_VERSION:-}" ]] && command -v fish >/dev/null 2>&1; then
+    export __DOTFILES_FISH_LAUNCHED=1
+    exec fish
+  fi
+fi
+# <<< dotfiles: launch fish for interactive shells <<<
+
 # If you come from bash you might have to change your $PATH.
 # export PATH=$HOME/bin:$HOME/.local/bin:/usr/local/bin:$PATH
 
