@@ -29,6 +29,10 @@ ln -s -f "$DOTFILES/fastfetch/config.jsonc" ~/.config/fastfetch/config.jsonc
 mkdir -p ~/.config/ghostty
 ln -s -f "$DOTFILES/ghostty/config" ~/.config/ghostty/config
 
+# bat — config for auto light/dark (Catppuccin Latte/Mocha ship built-in in bat).
+mkdir -p ~/.config/bat
+ln -s -f "$DOTFILES/bat/config" ~/.config/bat/config
+
 # fish — symlink only config.fish (fish writes its own state into ~/.config/fish)
 mkdir -p ~/.config/fish
 ln -s -f "$DOTFILES/fish/config.fish" ~/.config/fish/config.fish

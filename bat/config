@@ -1,0 +1,10 @@
+# ~/.dotfiles/bat/config  (symlinked to ~/.config/bat/config)
+
+# Auto day/night. `auto:system` reads the macOS system light/dark preference
+# directly (reliable — plain `auto` relies on a terminal background-colour query
+# that ghostty doesn't answer, so it fell back to Monokai). On Linux `auto:system`
+# has no system pref to read and bat falls back to its terminal detection.
+# Catppuccin Latte/Mocha ship built-in in bat 0.26.
+--theme=auto:system
+--theme-dark="Catppuccin Mocha"
+--theme-light="Catppuccin Latte"
