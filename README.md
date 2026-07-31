@@ -11,7 +11,9 @@ Installed:
 - `homebrew` 
 - `github` creds setup
 
-### Installation
+### Installation 
+
+#### __with__ sudo
 
 ```bash
 git clone --recursive git@github.com:b-d-e/dotfiles.git ~/.dotfiles && cd .dotfiles && sh bootstrap.sh
@@ -23,7 +25,7 @@ The `--recursive` clone pulls in the [`CLAUDE.md`](https://github.com/b-d-e/CLAU
 submodule (global Claude Code memory), which `symlinks.sh` links to
 `~/.claude/CLAUDE.md`.
 
-#### No sudo (shared clusters, managed hosts)
+#### __without__ sudo (shared clusters, managed hosts)
 
 ```bash
 sh bootstrap.sh --no-sudo
