@@ -103,20 +103,33 @@ echo "-- prebuilt binaries -> ~/.local --"
 install_neovim
 install_fastfetch
 
-# --- fish + tmux: no reliable no-root binary; detect or instruct ---
+# --- fish + tmux: no reliable no-root binary; use conda-forge when available ---
 # fish v4 is Rust but is not published to crates.io as the shell, and there is
-# no official prebuilt tarball. The exec-fish guard (added by bootstrap.sh)
-# activates automatically once fish lands on PATH by any of these routes.
+# no official prebuilt tarball. conda-forge is the cleanest no-root source, so
+# install from there automatically if conda is present; otherwise instruct.
+# The exec-fish guard (added by bootstrap.sh) activates once fish is on PATH.
+echo "-- fish + tmux --"
+missing=""
 for tool in fish tmux; do
   if command -v "$tool" >/dev/null 2>&1; then
     echo "  $tool already present ($(command -v "$tool"))"
   else
-    echo "  NOTE: $tool has no clean no-root binary. Install it via one of:"
-    echo "        - conda:  conda install -c conda-forge $tool"
-    echo "        - module: module load $tool   (on HPC clusters)"
-    echo "        - source build into ~/.local"
+    missing="$missing $tool"
   fi
 done
+if [ -n "$missing" ]; then
+  if command -v conda >/dev/null 2>&1; then
+    echo "  installing via conda-forge into the active env:$missing"
+    # shellcheck disable=SC2086
+    conda install -y -c conda-forge $missing \
+      || echo "  Warning: conda install failed for:$missing"
+  else
+    echo "  NOTE: no conda found. Install$missing via one of:"
+    echo "        - conda:  conda install -c conda-forge$missing"
+    echo "        - module: module load <tool>   (on HPC clusters)"
+    echo "        - source build into ~/.local"
+  fi
+fi
 
 echo "== done. Ensure ~/.local/bin and ~/.cargo/bin are on PATH =="
 echo "   (fish/config.fish and the bootstrap exec-guard add both automatically)"

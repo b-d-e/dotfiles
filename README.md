@@ -41,9 +41,10 @@ Installs everything in userspace — no root, no Homebrew:
 - `--no-sudo` is auto-enabled if `sudo` isn't installed. Even in normal mode, a
   failed `chsh` (common on managed Macs) falls back to the same rc guard.
 
-`fish` and `tmux` have no clean no-root binary — install them via
-`conda install -c conda-forge fish tmux`, an HPC `module`, or a source build;
-the fish guard activates automatically once fish appears on `PATH`.
+`fish` and `tmux` have no clean no-root binary, so if `conda` is present the
+installer pulls them from `conda-forge` automatically (into the active env);
+otherwise install via an HPC `module` or a source build. The fish guard
+activates automatically once fish appears on `PATH`.
 
 ### Shells
 
