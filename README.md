@@ -14,8 +14,7 @@ Installed:
 ### Installation
 
 ```bash
-git clone --recursive git@github.com:b-d-e/dotfiles.git ~/.dotfiles
-cd .dotfiles && sh bootstrap.sh
+git clone --recursive git@github.com:b-d-e/dotfiles.git ~/.dotfiles && cd .dotfiles && sh bootstrap.sh
 ```
 
 You may be asked to enter your password several times.
