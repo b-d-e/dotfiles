@@ -176,6 +176,14 @@ bash ~/.dotfiles/symlinks.sh
 # rm -rf ~/.config/nvim/.git
 # nvim
 
+# Ensure TPM (tmux plugin manager) is present. Clone it if missing — userspace
+# git clone, so this works with or without Homebrew/root.
+if [ ! -d "$HOME/.tmux/plugins/tpm" ]; then
+  echo "Cloning TPM (tmux plugin manager)..."
+  git clone --depth 1 https://github.com/tmux-plugins/tpm "$HOME/.tmux/plugins/tpm" \
+    || echo "Warning: TPM clone failed; tmux plugins won't be installed."
+fi
+
 # Install TPM plugins (for tmux)
 echo "Installing TPM plugins..."
 # Check if TPM is cloned before trying to install plugins

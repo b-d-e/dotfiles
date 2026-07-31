@@ -63,7 +63,7 @@ check_shell() {
 
 # Function to check all pre-requisites before proceeding
 validate_pre_requisites() {
-  echo "Running pre-requisite validation checks..."
+  # (bootstrap.sh already prints the "Running pre-requisite..." header.)
 
   # Check GitHub credentials
   check_github_creds
