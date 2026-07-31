@@ -9,10 +9,13 @@ ln -s -f "$DOTFILES/homebrew/Brewfile.linux" ~/Brewfile.linux
 ln -s -f "$DOTFILES/git/.gitconfig" ~/.gitconfig
 ln -s -f "$DOTFILES/tmux/.tmux.conf" ~/.tmux.conf
 
-# Claude Code global memory (the CLAUDE.md submodule -> ~/.claude/CLAUDE.md).
+# Claude Code config (the CLAUDE.md submodule -> ~/.claude/). CLAUDE.md is the
+# global memory; settings.json carries the SessionStart hook that pulls this
+# submodule each launch so both stay current with the remote.
 if [ -f "$DOTFILES/claude/CLAUDE.md" ]; then
   mkdir -p ~/.claude
   ln -s -f "$DOTFILES/claude/CLAUDE.md" ~/.claude/CLAUDE.md
+  ln -s -f "$DOTFILES/claude/settings.json" ~/.claude/settings.json
 else
   echo "claude/ submodule not populated; run 'git submodule update --init' then re-run."
 fi
