@@ -41,15 +41,23 @@ fi
 # <<< dotfiles: launch fish for interactive shells <<<
 EOS
 )"
+  _append_guard() {  # $1 = rc file
+    if grep -q "$marker" "$1" 2>/dev/null; then
+      echo "  fish exec guard already in $(basename "$1")"
+    else
+      printf '%s\n' "$block" >> "$1"
+      echo "  added fish exec guard to $(basename "$1")"
+    fi
+  }
+  # .bashrc: interactive non-login bash. .profile: POSIX login fallback.
   for rc in "$HOME/.bashrc" "$HOME/.profile"; do
     [ -e "$rc" ] || touch "$rc"
-    if grep -q "$marker" "$rc" 2>/dev/null; then
-      echo "  fish exec guard already in $(basename "$rc")"
-    else
-      printf '%s\n' "$block" >> "$rc"
-      echo "  added fish exec guard to $(basename "$rc")"
-    fi
+    _append_guard "$rc"
   done
+  # A bash login shell reads .bash_profile INSTEAD of .profile/.bashrc when it
+  # exists — so the guard MUST go there too, or SSH logins never reach fish.
+  # (Don't create it when absent: that would shadow .profile.)
+  [ -e "$HOME/.bash_profile" ] && _append_guard "$HOME/.bash_profile"
 }
 
 # get system info from utils/system_info.sh and assign to variables

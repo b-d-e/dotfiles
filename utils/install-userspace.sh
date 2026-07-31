@@ -47,33 +47,45 @@ else
   echo "Warning: cargo unavailable; skipping the Rust CLI tools."
 fi
 
-# --- neovim (prebuilt tarball; keeps its runtime dir, symlink the binary) ---
+# Packages to fall back to conda-forge for when their prebuilt won't run here
+# (e.g. host glibc too old). Filled in by the installers below.
+CONDA_QUEUE=""
+
+# --- neovim (prebuilt; runtime-checked, with an older-glibc fallback) ---
+# Prebuilts are the primary path — they work on most machines. Only if the
+# binary won't run here (older host glibc) do we drop to an older release. The
+# newest neovim that runs on glibc 2.31 is v0.10.4. conda-forge is NOT an option
+# for nvim (its `neovim` package is the Python client, not the editor).
 install_neovim() {
   command -v nvim >/dev/null 2>&1 && { echo "  nvim already present, skipping"; return; }
-  local asset
+  local asset asset_old
   case "$os/$arch" in
-    Linux/x86_64)              asset="nvim-linux-x86_64.tar.gz" ;;
-    Linux/aarch64|Linux/arm64) asset="nvim-linux-arm64.tar.gz" ;;
-    Darwin/arm64)              asset="nvim-macos-arm64.tar.gz" ;;
-    Darwin/x86_64)             asset="nvim-macos-x86_64.tar.gz" ;;
+    Linux/x86_64)              asset="nvim-linux-x86_64.tar.gz"; asset_old="nvim-linux-x86_64.tar.gz" ;;
+    Linux/aarch64|Linux/arm64) asset="nvim-linux-arm64.tar.gz";  asset_old="nvim-linux-arm64.tar.gz" ;;
+    Darwin/arm64)              asset="nvim-macos-arm64.tar.gz";  asset_old="" ;;
+    Darwin/x86_64)             asset="nvim-macos-x86_64.tar.gz"; asset_old="" ;;
     *) echo "  Warning: no neovim prebuilt for $os/$arch"; return ;;
   esac
-  local tmp; tmp="$(mktemp -d)"
-  if curl -fsSL "https://github.com/neovim/neovim/releases/latest/download/$asset" -o "$tmp/nvim.tgz"; then
-    rm -rf "$HOME/.local/nvim"; mkdir -p "$HOME/.local/nvim"
-    if tar -xzf "$tmp/nvim.tgz" -C "$HOME/.local/nvim" --strip-components=1; then
+  # Try (latest) then (v0.10.4, newest that runs on glibc 2.31).
+  local spec
+  for spec in "latest/download/$asset" "download/v0.10.4/$asset_old"; do
+    [ "$spec" = "download/v0.10.4/" ] && continue   # no old asset (macOS)
+    local tmp; tmp="$(mktemp -d)"
+    if curl -fsSL "https://github.com/neovim/neovim/releases/$spec" -o "$tmp/nvim.tgz" \
+       && rm -rf "$HOME/.local/nvim" && mkdir -p "$HOME/.local/nvim" \
+       && tar -xzf "$tmp/nvim.tgz" -C "$HOME/.local/nvim" --strip-components=1 \
+       && "$HOME/.local/nvim/bin/nvim" --version >/dev/null 2>&1; then
       ln -sf "$HOME/.local/nvim/bin/nvim" "$LOCAL_BIN/nvim"
-      echo "  neovim -> $LOCAL_BIN/nvim"
-    else
-      echo "  Warning: neovim extract failed."
+      echo "  neovim ($(basename "$spec" | sed 's/\.tar\.gz//; s/nvim-//')) -> $LOCAL_BIN/nvim"
+      rm -rf "$tmp"; return
     fi
-  else
-    echo "  Warning: neovim download failed."
-  fi
-  rm -rf "$tmp"
+    rm -rf "$tmp"
+    echo "  neovim prebuilt ($spec) unavailable or won't run here; trying older..."
+  done
+  echo "  Warning: no working neovim prebuilt (host glibc too old). Build from source or 'module load'."
 }
 
-# --- fastfetch (prebuilt; the binary is self-contained) ---
+# --- fastfetch (prebuilt; runtime-checked, conda-forge fallback) ---
 install_fastfetch() {
   command -v fastfetch >/dev/null 2>&1 && { echo "  fastfetch already present, skipping"; return; }
   local asset
@@ -83,23 +95,22 @@ install_fastfetch() {
     Darwin/*) echo "  (macOS: install fastfetch via Homebrew)"; return ;;
     *) echo "  Warning: no fastfetch prebuilt for $os/$arch"; return ;;
   esac
-  local tmp; tmp="$(mktemp -d)"
+  local tmp bin; tmp="$(mktemp -d)"
   if curl -fsSL "https://github.com/fastfetch-cli/fastfetch/releases/latest/download/$asset" -o "$tmp/ff.tgz" \
      && tar -xzf "$tmp/ff.tgz" -C "$tmp"; then
-    local bin; bin="$(find "$tmp" -type f -name fastfetch | head -1)"
-    if [ -n "$bin" ]; then
+    bin="$(find "$tmp" -type f -name fastfetch | head -1)"
+    if [ -n "$bin" ] && "$bin" --version >/dev/null 2>&1; then
       chmod +x "$bin"; cp "$bin" "$LOCAL_BIN/fastfetch"
       echo "  fastfetch -> $LOCAL_BIN/fastfetch"
-    else
-      echo "  Warning: fastfetch binary not found in archive."
+      rm -rf "$tmp"; return
     fi
-  else
-    echo "  Warning: fastfetch download failed."
   fi
   rm -rf "$tmp"
+  echo "  fastfetch prebuilt unavailable or won't run here; queuing conda-forge fallback."
+  CONDA_QUEUE="$CONDA_QUEUE fastfetch"
 }
 
-echo "-- prebuilt binaries -> ~/.local --"
+echo "-- prebuilt binaries -> ~/.local (conda-forge only as fallback) --"
 install_neovim
 install_fastfetch
 
@@ -154,46 +165,48 @@ print_manual_conda_steps() {
   echo "    (or with an existing conda:  conda install -c conda-forge$1 )"
 }
 
-echo "-- fish + tmux (via conda-forge) --"
-missing=""
+# fish + tmux have no clean no-root binary, so they always go through
+# conda-forge; fastfetch joins them only if its prebuilt failed (CONDA_QUEUE).
+echo "-- fish + tmux (+ any prebuilt fallbacks) via conda-forge --"
 for tool in fish tmux; do
   if command -v "$tool" >/dev/null 2>&1; then
     echo "  $tool already present ($(command -v "$tool"))"
   else
-    missing="$missing $tool"
+    CONDA_QUEUE="$CONDA_QUEUE $tool"
   fi
 done
 
-if [ -n "$missing" ]; then
+if [ -n "$CONDA_QUEUE" ]; then
+  echo "  conda-forge packages needed:$CONDA_QUEUE"
   # Branch on resolve_conda_tool's exit status; conda_tool holds only the path.
   if conda_tool="$(resolve_conda_tool)" && [ -n "$conda_tool" ]; then
-    echo "  installing via $(basename "$conda_tool") (conda-forge):$missing"
+    echo "  installing via $(basename "$conda_tool"):$CONDA_QUEUE"
     case "$(basename "$conda_tool")" in
       micromamba)
         # Install into a self-contained env prefix, then symlink the binaries
-        # onto PATH (no activation, no rc hook). fish/tmux resolve their data +
+        # onto PATH (no activation, no rc hook). Binaries resolve their data +
         # libs via the prefix through the symlink. `create` fresh, else `install`.
         export MAMBA_ROOT_PREFIX="$MAMBA_ROOT"
         mm_cmd=create; [ -d "$TOOLS_ENV/conda-meta" ] && mm_cmd=install
         # shellcheck disable=SC2086
-        if "$conda_tool" "$mm_cmd" -y -p "$TOOLS_ENV" -c conda-forge $missing; then
-          for t in $missing; do
+        if "$conda_tool" "$mm_cmd" -y -p "$TOOLS_ENV" -c conda-forge $CONDA_QUEUE; then
+          for t in $CONDA_QUEUE; do
             if [ -x "$TOOLS_ENV/bin/$t" ]; then
               ln -sf "$TOOLS_ENV/bin/$t" "$LOCAL_BIN/$t"; echo "  $t -> $LOCAL_BIN/$t"
             fi
           done
         else
-          echo "  Warning: micromamba install failed."; print_manual_conda_steps "$missing"
+          echo "  Warning: micromamba install failed."; print_manual_conda_steps "$CONDA_QUEUE"
         fi
         ;;
       *)
         # shellcheck disable=SC2086
-        "$conda_tool" install -y -c conda-forge $missing \
-          || { echo "  Warning: install failed."; print_manual_conda_steps "$missing"; }
+        "$conda_tool" install -y -c conda-forge $CONDA_QUEUE \
+          || { echo "  Warning: install failed."; print_manual_conda_steps "$CONDA_QUEUE"; }
         ;;
     esac
   else
-    print_manual_conda_steps "$missing"
+    print_manual_conda_steps "$CONDA_QUEUE"
   fi
 fi
 
