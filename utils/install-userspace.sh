@@ -26,6 +26,60 @@ fi
 # shellcheck disable=SC1091
 [ -f "$HOME/.cargo/env" ] && . "$HOME/.cargo/env"
 
+# --- Rust toolchain upgrade (for crates whose MSRV exceeds a pre-existing rustc) ---
+# A rustc that's already on PATH can be too old to build a crate ("requires rustc
+# 1.NN or newer, while the currently active rustc version is ..."). When that
+# happens we upgrade the toolchain and retry, at most once per run:
+#   - rustup-managed rustc   -> `rustup update stable`
+#   - distro/system rustc    -> install a userspace rustup and prefer it this run
+rust_upgrade_state="untried"   # untried | ok | failed
+
+upgrade_rust() {
+  if command -v rustup >/dev/null 2>&1; then
+    echo "  upgrading Rust toolchain via rustup..."
+    rustup update stable && rustup default stable
+    return $?
+  fi
+  echo "  system rustc is not rustup-managed; installing a userspace rustup..."
+  curl -fsSL https://sh.rustup.rs | sh -s -- -y --no-modify-path || return 1
+  # shellcheck disable=SC1091
+  [ -f "$HOME/.cargo/env" ] && . "$HOME/.cargo/env"
+  export PATH="$HOME/.cargo/bin:$PATH"   # prefer the fresh toolchain over the old system one
+  command -v rustup >/dev/null 2>&1 && rustup default stable >/dev/null 2>&1
+  return 0
+}
+
+# Upgrade the toolchain once per run; cache the outcome so later crates that hit
+# the same too-old rustc don't each re-attempt (and re-fail) the upgrade.
+maybe_upgrade_rust() {
+  case "$rust_upgrade_state" in
+    ok)     return 0 ;;
+    failed) return 1 ;;
+  esac
+  if upgrade_rust; then rust_upgrade_state="ok"; else rust_upgrade_state="failed"; fi
+  [ "$rust_upgrade_state" = "ok" ]
+}
+
+# cargo install with an MSRV-aware retry. Streams output live (compiles are slow,
+# silence looks like a hang) while teeing it so we can detect a "rustc too old"
+# failure, upgrade the toolchain, and retry the build once.
+cargo_install_crate() {
+  local crate="$1" log status
+  log="$(mktemp)"
+  cargo install --locked "$crate" 2>&1 | tee "$log"; status=${PIPESTATUS[0]}
+  if [ "$status" -ne 0 ] \
+     && grep -qiE 'requires rustc|cannot be built because it requires|currently active rustc' "$log"; then
+    echo "  $crate needs a newer rustc than is installed; upgrading toolchain and retrying..."
+    if maybe_upgrade_rust; then
+      cargo install --locked "$crate"; status=$?
+    else
+      echo "  Could not upgrade the Rust toolchain."
+    fi
+  fi
+  rm -f "$log"
+  return "$status"
+}
+
 # --- Rust CLI tools (compiled from source; no root needed) ---
 # crate -> installed binary name (differs for fd-find/ripgrep/nu)
 if command -v cargo >/dev/null 2>&1; then
@@ -40,7 +94,7 @@ if command -v cargo >/dev/null 2>&1; then
       echo "  $bin already present, skipping"
     else
       echo "  cargo install --locked $crate"
-      cargo install --locked "$crate" || echo "  Warning: cargo install $crate failed."
+      cargo_install_crate "$crate" || echo "  Warning: cargo install $crate failed."
     fi
   done
 else
