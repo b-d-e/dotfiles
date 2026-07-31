@@ -237,11 +237,20 @@ fi
 echo "Installing TPM plugins..."
 if [ -d "$HOME/.tmux/plugins/tpm" ]; then
   if command -v tmux >/dev/null 2>&1; then
-    # install_plugins reads TMUX_PLUGIN_MANAGER_PATH from the tmux *server*,
-    # which is only set once a server has sourced the config (the tpm run-hook).
-    # So spin up a throwaway session first. We only kill the session we start.
+    # install_plugins reads TMUX_PLUGIN_MANAGER_PATH from the tmux *server*
+    # environment. The config sets it via `run -b` (backgrounded), so it's
+    # usually NOT set yet when install_plugins runs — the installer then caches
+    # an empty path and aborts with "TMUX_PLUGIN_MANAGER_PATH ... not configured".
+    # Set it explicitly in the server env first (mirroring tpm's own default:
+    # the XDG plugins dir when a tmux.conf lives there, else ~/.tmux/plugins/).
+    if [ -f "${XDG_CONFIG_HOME:-$HOME/.config}/tmux/tmux.conf" ]; then
+      tpm_path="${XDG_CONFIG_HOME:-$HOME/.config}/tmux/plugins/"
+    else
+      tpm_path="$HOME/.tmux/plugins/"
+    fi
     tmux start-server 2>/dev/null
     tmux new-session -d -s __tpm_install 2>/dev/null || true
+    tmux set-environment -g TMUX_PLUGIN_MANAGER_PATH "$tpm_path" 2>/dev/null || true
     ~/.tmux/plugins/tpm/bin/install_plugins || echo "Warning: TPM plugin install failed."
     tmux kill-session -t __tpm_install 2>/dev/null || true
   else
@@ -300,23 +309,33 @@ if [ "$NO_SUDO" -eq 1 ]; then
   echo "Setting fish as the interactive shell via rc guard (no chsh/root)..."
   add_fish_exec_guard
 elif [ -n "$fish_path" ]; then
-  # Register fish/nushell in /etc/shells (needs sudo), then chsh to fish.
-  for candidate in fish nu; do
-    sh_path="$(command -v "$candidate" 2>/dev/null)"
-    if [ -n "$sh_path" ] && ! grep -qxF "$sh_path" /etc/shells 2>/dev/null; then
-      echo "Registering $sh_path in /etc/shells (needs sudo)..."
-      echo "$sh_path" | sudo tee -a /etc/shells >/dev/null 2>&1 \
-        || echo "Warning: couldn't write /etc/shells (need sudo)."
+  # Making fish the *login* shell needs root: registering it in /etc/shells
+  # (sudo) and chsh. On managed hosts sudo prompts for a password we can't
+  # satisfy (the "[sudo] password" / "Sorry, try again" loop) and chsh is often
+  # blocked anyway. Only take that path when sudo works NON-interactively; else
+  # use the no-root rc guard (same mechanism as --no-sudo).
+  if sudo -n true 2>/dev/null; then
+    # Register fish/nushell in /etc/shells, then chsh to fish.
+    for candidate in fish nu; do
+      sh_path="$(command -v "$candidate" 2>/dev/null)"
+      if [ -n "$sh_path" ] && ! grep -qxF "$sh_path" /etc/shells 2>/dev/null; then
+        echo "Registering $sh_path in /etc/shells..."
+        echo "$sh_path" | sudo -n tee -a /etc/shells >/dev/null 2>&1 \
+          || echo "Warning: couldn't write /etc/shells."
+      fi
+    done
+    if [ "$SHELL" != "$fish_path" ]; then
+      echo "Setting fish as the default login shell..."
+      # </dev/null so a chsh password prompt gets EOF and fails fast rather than
+      # hanging; on managed/enterprise hosts chsh is often denied regardless.
+      if ! chsh -s "$fish_path" </dev/null 2>/dev/null; then
+        echo "Warning: chsh failed (managed host?). Falling back to an rc guard."
+        add_fish_exec_guard
+      fi
     fi
-  done
-  if [ "$SHELL" != "$fish_path" ]; then
-    echo "Setting fish as the default login shell..."
-    if ! chsh -s "$fish_path" 2>/dev/null; then
-      # chsh often fails on managed/enterprise hosts even with the right
-      # password; fall back to the no-root rc guard so fish still launches.
-      echo "Warning: chsh failed (managed host?). Falling back to an rc guard."
-      add_fish_exec_guard
-    fi
+  else
+    echo "No passwordless sudo; setting fish via rc guard instead of chsh/root..."
+    add_fish_exec_guard
   fi
 else
   echo "fish not found; skipping default-shell setup."
