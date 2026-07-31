@@ -95,6 +95,27 @@ elif ! command -v zsh >/dev/null 2>&1; then
 fi
 
 
+# True iff Homebrew is on PATH AND its prefix is writable by us, i.e. `brew
+# bundle` can actually symlink the kegs it pours. On many remote hosts Linuxbrew
+# is a shared/pre-existing install owned by another user: bottles still pour but
+# the link step fails ("<dir> is not writable"), leaving tools half-installed.
+# We treat that as unusable and fall back to the userspace stack instead.
+brew_prefix_writable() {
+  command -v brew >/dev/null 2>&1 || return 1
+  local prefix; prefix="$(brew --prefix 2>/dev/null)" || return 1
+  [ -n "$prefix" ] || return 1
+  # Check the prefix root and the subdirs brew links into. A dir that doesn't
+  # exist yet is fine (brew creates it); one that exists but isn't writable is not.
+  local d
+  for d in "$prefix" "$prefix/bin" "$prefix/lib" "$prefix/etc" "$prefix/opt" \
+           "$prefix/Cellar" "$prefix/share" "$prefix/share/man" \
+           "$prefix/share/zsh/site-functions" \
+           "$prefix/share/fish/vendor_completions.d"; do
+    if [ -e "$d" ] && [ ! -w "$d" ]; then return 1; fi
+  done
+  return 0
+}
+
 # Install packages. In --no-sudo mode, skip Homebrew entirely and install the
 # CLI stack into userspace (~/.cargo, ~/.local); otherwise use Homebrew.
 if [ "$NO_SUDO" -eq 1 ]; then
@@ -111,10 +132,13 @@ elif [ "$OS" = "Darwin" ]; then
   fi
   brew bundle --file=~/.dotfiles/homebrew/Brewfile
 elif [ "$OS" = "Linux" ]; then
-  echo "Running on Linux. Installing brew packages from Brewfile.linux..."
+  echo "Running on Linux."
 
-  # Install Homebrew on Linux if not already installed
-  if ! command -v brew >/dev/null 2>&1; then
+  # Install Homebrew on Linux only if it's entirely absent. If a brew is already
+  # present (e.g. a shared Linuxbrew on a remote host), don't touch it — we test
+  # its usability below. Installing needs sudo for the build deps; if that isn't
+  # available the guard below routes us to the userspace stack instead.
+  if ! command -v brew >/dev/null 2>&1 && command -v sudo >/dev/null 2>&1; then
     echo "Homebrew (Linuxbrew) not found. Installing Homebrew..."
     sudo apt update # Ensure apt is up-to-date for dependencies
     sudo apt install build-essential procps curl file git -y # Essential dependencies for Homebrew
@@ -126,9 +150,26 @@ elif [ "$OS" = "Linux" ]; then
     echo 'eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"' >> ~/.zshrc # Assuming Zsh is preferred
     # Or for bash: echo 'eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"' >> ~/.bashrc
   fi
-  brew bundle --file=~/.dotfiles/homebrew/Brewfile.linux
 
-  echo "Installing Linux-specific GUI applications and other tools..."
+  # Guard: only use brew if its prefix is actually writable by us. Otherwise
+  # (shared/non-writable Linuxbrew, or brew never installed above) fall back to
+  # the userspace CLI stack, which installs into ~/.cargo + ~/.local and skips
+  # anything already on PATH — including apt-provided tools — so it never fights
+  # a package the system already has.
+  if brew_prefix_writable; then
+    echo "Homebrew prefix is writable; installing from Brewfile.linux..."
+    # Tolerate partial failures so a single link collision doesn't abort the
+    # rest of bootstrap; NO_ENV_HINTS quietens sandbox/hint noise on remotes.
+    HOMEBREW_NO_ENV_HINTS=1 brew bundle --file=~/.dotfiles/homebrew/Brewfile.linux \
+      || echo "Warning: some brew packages failed to install/link; continuing."
+  else
+    echo "Homebrew unusable here (missing, or a non-writable shared prefix on this remote)."
+    echo "Falling back to the userspace CLI stack (~/.cargo, ~/.local)..."
+    bash ~/.dotfiles/utils/install-userspace.sh
+  fi
+
+  # Linux GUI applications are not installed here — add them manually via
+  # apt/snap/flatpak or a .deb download. Examples:
   # IMPORTANT: Cask applications are macOS-specific.
   # You need to manually add installations for your desired GUI apps on Linux here.
   # Examples using apt, snap, or flatpak:
