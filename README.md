@@ -41,10 +41,13 @@ Installs everything in userspace — no root, no Homebrew:
 - `--no-sudo` is auto-enabled if `sudo` isn't installed. Even in normal mode, a
   failed `chsh` (common on managed Macs) falls back to the same rc guard.
 
-`fish` and `tmux` have no clean no-root binary, so if `conda` is present the
-installer pulls them from `conda-forge` automatically (into the active env);
-otherwise install via an HPC `module` or a source build. The fish guard
-activates automatically once fish appears on `PATH`.
+`fish` and `tmux` have no clean no-root binary, so the installer pulls them from
+`conda-forge`: it reuses an existing `conda`/`mamba`/`micromamba`, or bootstraps
+[`micromamba`](https://mamba.readthedocs.io/en/latest/user_guide/micromamba.html)
+(a single static binary — no Python, no shell hook) into `~/.local`, installs
+into a self-contained prefix, and symlinks the binaries onto `PATH`. If every
+route fails it prints exact manual steps. The fish guard activates once fish is
+on `PATH`.
 
 ### Shells
 

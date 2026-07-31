@@ -103,12 +103,53 @@ echo "-- prebuilt binaries -> ~/.local --"
 install_neovim
 install_fastfetch
 
-# --- fish + tmux: no reliable no-root binary; use conda-forge when available ---
+# --- fish + tmux: no reliable no-root binary; get them from conda-forge ---
 # fish v4 is Rust but is not published to crates.io as the shell, and there is
-# no official prebuilt tarball. conda-forge is the cleanest no-root source, so
-# install from there automatically if conda is present; otherwise instruct.
-# The exec-fish guard (added by bootstrap.sh) activates once fish is on PATH.
-echo "-- fish + tmux --"
+# no official prebuilt tarball. conda-forge is the cleanest no-root source. We
+# reuse an existing conda/mamba/micromamba, else bootstrap micromamba (a single
+# static binary, no Python, no shell hook) into ~/.local. The exec-fish guard
+# (added by bootstrap.sh) activates once fish is on PATH.
+
+MAMBA_ROOT="${MAMBA_ROOT_PREFIX:-$HOME/.local/micromamba}"
+
+install_micromamba() {
+  local mm="$LOCAL_BIN/micromamba" plat
+  [ -x "$mm" ] && return 0
+  case "$os/$arch" in
+    Linux/x86_64)              plat="linux-64" ;;
+    Linux/aarch64|Linux/arm64) plat="linux-aarch64" ;;
+    Darwin/arm64)              plat="osx-arm64" ;;
+    Darwin/x86_64)             plat="osx-64" ;;
+    *) echo "  Warning: no micromamba build for $os/$arch"; return 1 ;;
+  esac
+  echo "  installing micromamba ($plat) into ~/.local/bin ..."
+  if curl -Ls "https://micro.mamba.pm/api/micromamba/$plat/latest" \
+       | tar -xj -C "$HOME/.local" bin/micromamba 2>/dev/null; then
+    chmod +x "$mm"; return 0
+  fi
+  echo "  Warning: micromamba download failed."; return 1
+}
+
+# Echo the name of a usable conda-family tool, installing micromamba if needed.
+resolve_conda_tool() {
+  local c
+  for c in conda mamba micromamba; do
+    command -v "$c" >/dev/null 2>&1 && { echo "$c"; return 0; }
+  done
+  install_micromamba && { echo "$LOCAL_BIN/micromamba"; return 0; }
+  return 1
+}
+
+print_manual_conda_steps() {
+  local plat="linux-64|linux-aarch64|osx-arm64|osx-64"
+  echo "  Could not obtain conda/mamba/micromamba automatically. To finish by hand (no root):"
+  echo "    1) curl -Ls https://micro.mamba.pm/api/micromamba/<$plat>/latest | tar -xj -C ~/.local bin/micromamba"
+  echo "    2) ~/.local/bin/micromamba create -y -p ~/.local/micromamba -c conda-forge$1"
+  echo "    3) ln -sf ~/.local/micromamba/bin/{${1// /,}} ~/.local/bin/"
+  echo "    (or with an existing conda:  conda install -c conda-forge$1 )"
+}
+
+echo "-- fish + tmux (via conda-forge) --"
 missing=""
 for tool in fish tmux; do
   if command -v "$tool" >/dev/null 2>&1; then
@@ -117,17 +158,35 @@ for tool in fish tmux; do
     missing="$missing $tool"
   fi
 done
+
 if [ -n "$missing" ]; then
-  if command -v conda >/dev/null 2>&1; then
-    echo "  installing via conda-forge into the active env:$missing"
-    # shellcheck disable=SC2086
-    conda install -y -c conda-forge $missing \
-      || echo "  Warning: conda install failed for:$missing"
+  conda_tool="$(resolve_conda_tool)"
+  if [ -n "$conda_tool" ]; then
+    echo "  installing via $(basename "$conda_tool") (conda-forge):$missing"
+    case "$(basename "$conda_tool")" in
+      micromamba)
+        # Self-contained prefix + symlink the binaries onto PATH (no activation,
+        # no rc hook). fish/tmux resolve their data + libs via the prefix.
+        # Use `create` for a fresh prefix, `install` if one already exists.
+        mm_cmd=create; [ -d "$MAMBA_ROOT/conda-meta" ] && mm_cmd=install
+        # shellcheck disable=SC2086
+        if "$conda_tool" "$mm_cmd" -y -p "$MAMBA_ROOT" -c conda-forge $missing; then
+          for t in $missing; do
+            [ -x "$MAMBA_ROOT/bin/$t" ] && ln -sf "$MAMBA_ROOT/bin/$t" "$LOCAL_BIN/$t" \
+              && echo "  $t -> $LOCAL_BIN/$t"
+          done
+        else
+          echo "  Warning: micromamba install failed."; print_manual_conda_steps "$missing"
+        fi
+        ;;
+      *)
+        # shellcheck disable=SC2086
+        "$conda_tool" install -y -c conda-forge $missing \
+          || { echo "  Warning: $conda_tool install failed."; print_manual_conda_steps "$missing"; }
+        ;;
+    esac
   else
-    echo "  NOTE: no conda found. Install$missing via one of:"
-    echo "        - conda:  conda install -c conda-forge$missing"
-    echo "        - module: module load <tool>   (on HPC clusters)"
-    echo "        - source build into ~/.local"
+    print_manual_conda_steps "$missing"
   fi
 fi
 
