@@ -32,7 +32,8 @@ on Linux) — which the tracked `ghostty/config` selects for the terminal.
 - `fastfetch` shows a system-info banner on new shells (`fastfetch/config.jsonc`).
 
 **Theme:** Catppuccin, auto day/night. `ghostty` follows the macOS light/dark
-appearance (`Frappe` ⇄ `Mocha`); `eza` and `starship` draw with the terminal's
+appearance (`Latte` ⇄ `Mocha`, with a softened light background — see
+`ghostty/themes/Catppuccin Latte Soft`); `eza` and `starship` draw with the terminal's
 ANSI palette so they follow along; `bat` matches via `bat/config`
 (`--theme=auto:system`).
 

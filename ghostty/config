@@ -14,4 +14,4 @@ font-size = 14
 # Auto day/night: ghostty follows the OS light/dark appearance and swaps between
 # these two themes live. eza + starship draw with the terminal's ANSI palette so
 # they follow along; bat matches via bat/config (Catppuccin Latte/Mocha).
-theme = light:Catppuccin Frappe,dark:Catppuccin Mocha
+theme = light:Catppuccin Latte Soft,dark:Catppuccin Mocha

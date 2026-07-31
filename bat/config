@@ -7,4 +7,4 @@
 # Catppuccin Latte/Mocha ship built-in in bat 0.26.
 --theme=auto:system
 --theme-dark="Catppuccin Mocha"
---theme-light="Catppuccin Frappe"
+--theme-light="Catppuccin Latte"

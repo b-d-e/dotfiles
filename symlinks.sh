@@ -25,9 +25,12 @@ ln -s -f "$DOTFILES/starship.toml" ~/.config/starship.toml
 mkdir -p ~/.config/fastfetch
 ln -s -f "$DOTFILES/fastfetch/config.jsonc" ~/.config/fastfetch/config.jsonc
 
-# ghostty terminal
-mkdir -p ~/.config/ghostty
+# ghostty terminal (+ custom themes referenced by the config)
+mkdir -p ~/.config/ghostty/themes
 ln -s -f "$DOTFILES/ghostty/config" ~/.config/ghostty/config
+for gtheme in "$DOTFILES"/ghostty/themes/*; do
+  ln -s -f "$gtheme" ~/.config/ghostty/themes/"$(basename "$gtheme")"
+done
 
 # bat — config for auto light/dark (Catppuccin Latte/Mocha ship built-in in bat).
 mkdir -p ~/.config/bat
