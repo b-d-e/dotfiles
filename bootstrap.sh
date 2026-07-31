@@ -2,6 +2,56 @@
 
 echo "Setting up new machine..."
 
+# --- flags ---------------------------------------------------------------
+# --no-sudo: install everything in userspace (~/.cargo, ~/.local), skip
+# Homebrew, and make fish the interactive shell via an rc guard instead of
+# chsh. For locked-down hosts (shared clusters, managed Macs) without root.
+NO_SUDO=0
+for arg in "$@"; do
+  case "$arg" in
+    --no-sudo) NO_SUDO=1 ;;
+  esac
+done
+# Auto-fall back to userspace mode if sudo isn't even available.
+if [ "$NO_SUDO" -eq 0 ] && ! command -v sudo >/dev/null 2>&1; then
+  echo "No 'sudo' found — switching to userspace (--no-sudo) mode."
+  NO_SUDO=1
+fi
+[ "$NO_SUDO" -eq 1 ] && echo "Running in --no-sudo (userspace) mode."
+
+# Make fish the interactive shell without chsh/root: append a guard to the
+# login rc files that exec's fish for interactive sessions once it's on PATH.
+# Skips ~/.zshrc on purpose (that's our tracked fallback config). Idempotent.
+add_fish_exec_guard() {
+  local marker="__DOTFILES_FISH_LAUNCHED" block rc
+  block="$(cat <<'EOS'
+
+# >>> dotfiles: launch fish for interactive shells (no chsh needed) >>>
+if [ -z "${__DOTFILES_FISH_LAUNCHED:-}" ]; then
+  export PATH="$HOME/.local/bin:$HOME/.cargo/bin:$PATH"
+  case "$-" in
+    *i*)
+      if [ -z "${FISH_VERSION:-}" ] && command -v fish >/dev/null 2>&1; then
+        export __DOTFILES_FISH_LAUNCHED=1
+        exec fish
+      fi
+      ;;
+  esac
+fi
+# <<< dotfiles: launch fish for interactive shells <<<
+EOS
+)"
+  for rc in "$HOME/.bashrc" "$HOME/.profile"; do
+    [ -e "$rc" ] || touch "$rc"
+    if grep -q "$marker" "$rc" 2>/dev/null; then
+      echo "  fish exec guard already in $(basename "$rc")"
+    else
+      printf '%s\n' "$block" >> "$rc"
+      echo "  added fish exec guard to $(basename "$rc")"
+    fi
+  done
+}
+
 # get system info from utils/system_info.sh and assign to variables
 echo "Getting system info..."
 # Ensure these scripts are executed with bash for proper syntax support
@@ -27,15 +77,22 @@ fi
 
 
 echo "Installing oh-my-zsh..."
-# Install oh-my-zsh if not already installed
-if [ ! -d "$HOME/.oh-my-zsh" ]; then
-  # Install oh-my-zsh using the official installer script
-  sh -c "$(curl -fsSL https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh)"
+# Install oh-my-zsh only if zsh exists and it isn't already installed. Pass
+# RUNZSH=no/CHSH=no --unattended so the installer never tries to switch shells
+# (fish is our default; this keeps zsh purely as a fallback).
+if command -v zsh >/dev/null 2>&1 && [ ! -d "$HOME/.oh-my-zsh" ]; then
+  RUNZSH=no CHSH=no sh -c "$(curl -fsSL https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh)" "" --unattended
+elif ! command -v zsh >/dev/null 2>&1; then
+  echo "zsh not found; skipping oh-my-zsh (fish is the default shell anyway)."
 fi
 
 
-# Install Homebrew and packages based on OS
-if [ "$OS" = "Darwin" ]; then
+# Install packages. In --no-sudo mode, skip Homebrew entirely and install the
+# CLI stack into userspace (~/.cargo, ~/.local); otherwise use Homebrew.
+if [ "$NO_SUDO" -eq 1 ]; then
+  echo "Installing CLI stack in userspace (skipping Homebrew)..."
+  bash ~/.dotfiles/utils/install-userspace.sh
+elif [ "$OS" = "Darwin" ]; then
   echo "Running on macOS. Installing brew packages and casks from Brewfile..."
   # Check for Homebrew installation on macOS
   if ! command -v brew >/dev/null 2>&1; then
@@ -92,11 +149,14 @@ else
   echo "Skipping Homebrew installation on unknown OS: $OS."
 fi
 
-echo "Installing rust via rustup"
-# The rustup installer handles different OSes correctly
-curl https://sh.rustup.rs -sSf | sh -s -- -y
+# Install rust via rustup (userspace). Skip if cargo already exists — the
+# --no-sudo path installs it earlier, and re-running is pointless.
+if ! command -v cargo >/dev/null 2>&1; then
+  echo "Installing rust via rustup"
+  curl https://sh.rustup.rs -sSf | sh -s -- -y
+fi
 # Source the cargo environment for the current session
-. "$HOME/.cargo/env"
+[ -f "$HOME/.cargo/env" ] && . "$HOME/.cargo/env"
 
 # Ensure git submodules are present (e.g. the CLAUDE.md global-memory repo).
 # No-op if already initialised or if cloned with --recursive.
@@ -171,20 +231,34 @@ if [ "$OS" = "Linux" ]; then
   fi
 fi
 
-# Register fish and nushell as valid login shells, then make fish the default.
-# (zsh config stays in place as a fallback: `chsh -s "$(command -v zsh)"`.)
-for candidate in fish nu; do
-  sh_path="$(command -v "$candidate" 2>/dev/null)"
-  if [ -n "$sh_path" ] && ! grep -qxF "$sh_path" /etc/shells 2>/dev/null; then
-    echo "Registering $sh_path in /etc/shells (needs sudo)..."
-    echo "$sh_path" | sudo tee -a /etc/shells >/dev/null
-  fi
-done
-
+# Make fish the default interactive shell.
+# (zsh config stays in place as a fallback.)
 fish_path="$(command -v fish 2>/dev/null)"
-if [ -n "$fish_path" ] && [ "$SHELL" != "$fish_path" ]; then
-  echo "Setting fish as the default login shell..."
-  chsh -s "$fish_path" || echo "Warning: chsh failed; run 'chsh -s $fish_path' manually."
+if [ "$NO_SUDO" -eq 1 ]; then
+  # No root: don't touch /etc/shells or chsh — exec fish from the login rc.
+  echo "Setting fish as the interactive shell via rc guard (no chsh/root)..."
+  add_fish_exec_guard
+elif [ -n "$fish_path" ]; then
+  # Register fish/nushell in /etc/shells (needs sudo), then chsh to fish.
+  for candidate in fish nu; do
+    sh_path="$(command -v "$candidate" 2>/dev/null)"
+    if [ -n "$sh_path" ] && ! grep -qxF "$sh_path" /etc/shells 2>/dev/null; then
+      echo "Registering $sh_path in /etc/shells (needs sudo)..."
+      echo "$sh_path" | sudo tee -a /etc/shells >/dev/null 2>&1 \
+        || echo "Warning: couldn't write /etc/shells (need sudo)."
+    fi
+  done
+  if [ "$SHELL" != "$fish_path" ]; then
+    echo "Setting fish as the default login shell..."
+    if ! chsh -s "$fish_path" 2>/dev/null; then
+      # chsh often fails on managed/enterprise hosts even with the right
+      # password; fall back to the no-root rc guard so fish still launches.
+      echo "Warning: chsh failed (managed host?). Falling back to an rc guard."
+      add_fish_exec_guard
+    fi
+  fi
+else
+  echo "fish not found; skipping default-shell setup."
 fi
 
 echo "All done!"

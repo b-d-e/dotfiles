@@ -24,6 +24,27 @@ The `--recursive` clone pulls in the [`CLAUDE.md`](https://github.com/b-d-e/CLAU
 submodule (global Claude Code memory), which `symlinks.sh` links to
 `~/.claude/CLAUDE.md`.
 
+#### No sudo (shared clusters, managed hosts)
+
+```bash
+sh bootstrap.sh --no-sudo
+```
+
+Installs everything in userspace — no root, no Homebrew:
+
+- CLI stack via `cargo install` (`starship`, `eza`, `bat`, `ripgrep`, `fd`,
+  `zoxide`, `atuin`, `nushell`) — compiled from source, so the first run is slow.
+- `neovim` + `fastfetch` from prebuilt tarballs into `~/.local`.
+- fish is made the interactive shell via an `exec fish` guard appended to
+  `~/.bashrc`/`~/.profile` (no `chsh`, no `/etc/shells`). The guard is
+  loop-safe and only fires for interactive sessions once fish is on `PATH`.
+- `--no-sudo` is auto-enabled if `sudo` isn't installed. Even in normal mode, a
+  failed `chsh` (common on managed Macs) falls back to the same rc guard.
+
+`fish` and `tmux` have no clean no-root binary — install them via
+`conda install -c conda-forge fish tmux`, an HPC `module`, or a source build;
+the fish guard activates automatically once fish appears on `PATH`.
+
 ### Shells
 
 `fish` is the default login shell (bootstrap runs `chsh`). `zsh` and `nushell`
