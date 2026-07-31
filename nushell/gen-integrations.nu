@@ -14,3 +14,7 @@ if (which atuin | is-not-empty) {
     atuin init nu | save -f ($autoload_dir | path join "atuin.nu")
     print $"wrote ($autoload_dir | path join 'atuin.nu')"
 }
+if (which zoxide | is-not-empty) {
+    zoxide init nushell | save -f ($autoload_dir | path join "zoxide.nu")
+    print $"wrote ($autoload_dir | path join 'zoxide.nu')"
+}

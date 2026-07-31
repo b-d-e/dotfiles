@@ -31,3 +31,12 @@ on Linux) — which the tracked `ghostty/config` selects for the terminal.
 
 - `fastfetch` shows a system-info banner on new shells (`fastfetch/config.jsonc`).
 
+### CLI stack
+
+Shared across all three shells (installed via the Brewfiles):
+
+- [`zoxide`](https://github.com/ajeetdsouza/zoxide) — smarter `cd` (`z` / `zi`)
+- [`eza`](https://github.com/eza-community/eza) — modern `ls` (`ls`/`ll`/`la`/`lt`, with icons + git status)
+- [`bat`](https://github.com/sharkdp/bat) — `cat` with syntax highlighting
+- [`ripgrep`](https://github.com/BurntSushi/ripgrep) — fast recursive search (`rg`)
+

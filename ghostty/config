@@ -1,5 +1,11 @@
 # ~/.dotfiles/ghostty/config  (symlinked to ~/.config/ghostty/config)
 
+# Launch fish explicitly. This outranks the $SHELL env var, which GUI apps
+# cache at login and which otherwise keeps opening the old shell until the
+# next full logout. Path is macOS Homebrew; on Linux use
+# /home/linuxbrew/.linuxbrew/bin/fish (or /usr/bin/fish).
+command = /opt/homebrew/bin/fish --login --interactive
+
 # Nerd Font so the starship prompt glyphs render (installed via the Brewfile
 # on macOS / auto-downloaded on Linux by bootstrap.sh).
 font-family = JetBrainsMono Nerd Font

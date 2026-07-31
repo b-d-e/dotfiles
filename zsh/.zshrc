@@ -115,6 +115,18 @@ source $ZSH/oh-my-zsh.sh
 # alias ohmyzsh="mate ~/.oh-my-zsh"
 alias vim="nvim"
 
+# Modern CLI replacements (only if installed).
+if command -v eza >/dev/null; then
+  alias ls="eza --icons --group-directories-first"
+  alias ll="eza -l --icons --git --group-directories-first"
+  alias la="eza -la --icons --git --group-directories-first"
+  alias lt="eza --tree --level=2 --icons"
+fi
+command -v bat >/dev/null && alias cat="bat"
+
+# zoxide: smarter `cd` (adds `z` / `zi`).
+command -v zoxide >/dev/null && eval "$(zoxide init zsh)"
+
 # Added by LM Studio CLI (lms)
 export PATH="$PATH:/Users/shil6499/.lmstudio/bin"
 # End of LM Studio CLI section
