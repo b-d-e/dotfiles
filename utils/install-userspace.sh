@@ -111,7 +111,11 @@ install_fastfetch
 # (added by bootstrap.sh) activates once fish is on PATH.
 
 MAMBA_ROOT="${MAMBA_ROOT_PREFIX:-$HOME/.local/micromamba}"
+TOOLS_ENV="$MAMBA_ROOT/envs/tools"
 
+# NOTE: install_micromamba and resolve_conda_tool run inside $(...) command
+# substitution, so their ONLY stdout must be the resolved tool path — every
+# human-readable message goes to stderr (>&2), or it pollutes the captured path.
 install_micromamba() {
   local mm="$LOCAL_BIN/micromamba" plat
   [ -x "$mm" ] && return 0
@@ -120,17 +124,18 @@ install_micromamba() {
     Linux/aarch64|Linux/arm64) plat="linux-aarch64" ;;
     Darwin/arm64)              plat="osx-arm64" ;;
     Darwin/x86_64)             plat="osx-64" ;;
-    *) echo "  Warning: no micromamba build for $os/$arch"; return 1 ;;
+    *) echo "  Warning: no micromamba build for $os/$arch" >&2; return 1 ;;
   esac
-  echo "  installing micromamba ($plat) into ~/.local/bin ..."
+  echo "  installing micromamba ($plat) into ~/.local/bin ..." >&2
   if curl -Ls "https://micro.mamba.pm/api/micromamba/$plat/latest" \
-       | tar -xj -C "$HOME/.local" bin/micromamba 2>/dev/null; then
+       | tar -xj -C "$HOME/.local" bin/micromamba; then
     chmod +x "$mm"; return 0
   fi
-  echo "  Warning: micromamba download failed."; return 1
+  echo "  Warning: micromamba download failed." >&2; return 1
 }
 
-# Echo the name of a usable conda-family tool, installing micromamba if needed.
+# Echo the name/path of a usable conda-family tool, installing micromamba if
+# needed. Only the tool path reaches stdout; branch on the RETURN CODE.
 resolve_conda_tool() {
   local c
   for c in conda mamba micromamba; do
@@ -144,8 +149,8 @@ print_manual_conda_steps() {
   local plat="linux-64|linux-aarch64|osx-arm64|osx-64"
   echo "  Could not obtain conda/mamba/micromamba automatically. To finish by hand (no root):"
   echo "    1) curl -Ls https://micro.mamba.pm/api/micromamba/<$plat>/latest | tar -xj -C ~/.local bin/micromamba"
-  echo "    2) ~/.local/bin/micromamba create -y -p ~/.local/micromamba -c conda-forge$1"
-  echo "    3) ln -sf ~/.local/micromamba/bin/{${1// /,}} ~/.local/bin/"
+  echo "    2) ~/.local/bin/micromamba create -y -p ~/.local/micromamba/envs/tools -c conda-forge$1"
+  echo "    3) for t in$1; do ln -sf ~/.local/micromamba/envs/tools/bin/\$t ~/.local/bin/; done"
   echo "    (or with an existing conda:  conda install -c conda-forge$1 )"
 }
 
@@ -160,20 +165,22 @@ for tool in fish tmux; do
 done
 
 if [ -n "$missing" ]; then
-  conda_tool="$(resolve_conda_tool)"
-  if [ -n "$conda_tool" ]; then
+  # Branch on resolve_conda_tool's exit status; conda_tool holds only the path.
+  if conda_tool="$(resolve_conda_tool)" && [ -n "$conda_tool" ]; then
     echo "  installing via $(basename "$conda_tool") (conda-forge):$missing"
     case "$(basename "$conda_tool")" in
       micromamba)
-        # Self-contained prefix + symlink the binaries onto PATH (no activation,
-        # no rc hook). fish/tmux resolve their data + libs via the prefix.
-        # Use `create` for a fresh prefix, `install` if one already exists.
-        mm_cmd=create; [ -d "$MAMBA_ROOT/conda-meta" ] && mm_cmd=install
+        # Install into a self-contained env prefix, then symlink the binaries
+        # onto PATH (no activation, no rc hook). fish/tmux resolve their data +
+        # libs via the prefix through the symlink. `create` fresh, else `install`.
+        export MAMBA_ROOT_PREFIX="$MAMBA_ROOT"
+        mm_cmd=create; [ -d "$TOOLS_ENV/conda-meta" ] && mm_cmd=install
         # shellcheck disable=SC2086
-        if "$conda_tool" "$mm_cmd" -y -p "$MAMBA_ROOT" -c conda-forge $missing; then
+        if "$conda_tool" "$mm_cmd" -y -p "$TOOLS_ENV" -c conda-forge $missing; then
           for t in $missing; do
-            [ -x "$MAMBA_ROOT/bin/$t" ] && ln -sf "$MAMBA_ROOT/bin/$t" "$LOCAL_BIN/$t" \
-              && echo "  $t -> $LOCAL_BIN/$t"
+            if [ -x "$TOOLS_ENV/bin/$t" ]; then
+              ln -sf "$TOOLS_ENV/bin/$t" "$LOCAL_BIN/$t"; echo "  $t -> $LOCAL_BIN/$t"
+            fi
           done
         else
           echo "  Warning: micromamba install failed."; print_manual_conda_steps "$missing"
@@ -182,7 +189,7 @@ if [ -n "$missing" ]; then
       *)
         # shellcheck disable=SC2086
         "$conda_tool" install -y -c conda-forge $missing \
-          || { echo "  Warning: $conda_tool install failed."; print_manual_conda_steps "$missing"; }
+          || { echo "  Warning: install failed."; print_manual_conda_steps "$missing"; }
         ;;
     esac
   else
