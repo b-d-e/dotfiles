@@ -186,16 +186,20 @@ fi
 
 # Install TPM plugins (for tmux)
 echo "Installing TPM plugins..."
-# Check if TPM is cloned before trying to install plugins
 if [ -d "$HOME/.tmux/plugins/tpm" ]; then
-  # Ensure tmux is installed before running tpm, though brew should handle it
   if command -v tmux >/dev/null 2>&1; then
-    ~/.tmux/plugins/tpm/bin/install_plugins
+    # install_plugins reads TMUX_PLUGIN_MANAGER_PATH from the tmux *server*,
+    # which is only set once a server has sourced the config (the tpm run-hook).
+    # So spin up a throwaway session first. We only kill the session we start.
+    tmux start-server 2>/dev/null
+    tmux new-session -d -s __tpm_install 2>/dev/null || true
+    ~/.tmux/plugins/tpm/bin/install_plugins || echo "Warning: TPM plugin install failed."
+    tmux kill-session -t __tpm_install 2>/dev/null || true
   else
     echo "Warning: tmux not found. Cannot install TPM plugins without tmux."
   fi
 else
-  echo "TPM not found. Please ensure TPM is cloned to ~/.tmux/plugins/tpm (e.g., via a symlink from your dotfiles) before running this script if you want TPM plugins installed."
+  echo "TPM not found at ~/.tmux/plugins/tpm; skipping plugin install."
 fi
 
 # Install VS Code Extensions (cross-platform, assumes 'code' command is available)
