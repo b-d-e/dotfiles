@@ -150,3 +150,5 @@ command -v fzf >/dev/null && source <(fzf --zsh)
 export PATH="$PATH:/Users/shil6499/.lmstudio/bin"
 # End of LM Studio CLI section
 
+eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"
+eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"
