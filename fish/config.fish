@@ -20,6 +20,14 @@ if status is-interactive
     # System-info banner first, so it paints immediately.
     command -q fastfetch && fastfetch
 
+    # Keep dotfiles current: fast-forward pull + re-link in the background.
+    # Throttled and disowned, so it never blocks or hangs this prompt; changes
+    # land for the *next* session. Reinstall is never triggered -- see sync.sh.
+    if test -x "$HOME/.dotfiles/utils/sync.sh"
+        sh "$HOME/.dotfiles/utils/sync.sh" >/dev/null 2>&1 &
+        disown
+    end
+
     # Aliases
     alias vim nvim
 
