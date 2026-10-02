@@ -20,6 +20,11 @@ else
   echo "claude/ submodule not populated; run 'git submodule update --init' then re-run."
 fi
 
+# nvitop wrapper (keeps the MEM/UTL bar column in narrow panes; see nvitop/nvitop).
+# Needs only `uv` at runtime; ~/.local/bin is on PATH via zsh/.zshrc.
+mkdir -p ~/.local/bin
+ln -s -f "$DOTFILES/nvitop/nvitop" ~/.local/bin/nvitop
+
 # zsh (still the login shell; fish/nushell are opt-in via `fish`/`nu`)
 ln -s -f "$DOTFILES/zsh/.zshrc" ~/.zshrc
 ln -s -f "$DOTFILES/zsh/.zshenv" ~/.zshenv

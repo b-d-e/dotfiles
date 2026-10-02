@@ -1,0 +1,246 @@
+#!/usr/bin/env -S uv run --script --quiet
+# /// script
+# requires-python = ">=3.9"
+# dependencies = ["nvitop==1.7.1"]
+# ///
+"""nvitop wrapper: in narrow terminals, collapse the GPU table onto the bar column.
+
+Stock nvitop refuses to draw below 79 columns and only draws the MEM/UTL bar
+column at >=100, so a narrow pane shows `Volatile Uncorr. ECC` / `MIG M.` /
+`Compute M.` and nothing else. Here, below 100 columns the device panel is
+rendered at a virtual width (>=100) and whole columns are elided on the way to
+curses, least useful first (see LEVELS), so the bars are the last thing left.
+The 79-column floor is lifted to MIN_TERM_WIDTH; the host and process panels
+are simply clipped at the right edge.
+
+Monkeypatches nvitop internals, so nvitop is pinned; on any other version it
+falls back to stock behaviour. Set NVITOP_NO_ELIDE=1 to disable.
+"""
+
+import os
+import sys
+
+# Collapse levels: spans [lo, hi) of the 79-char device table, elided
+# cumulatively as the terminal narrows. The lowest level whose elided width
+# still leaves room for the bar column (>=21 cols, i.e. >=100 virtual) wins.
+#   full mode:    column 3 (ECC / MIG M. / GPU-Util / Compute M.), then column 2
+#                 (Bus-Id / Memory-Usage), then column 1 bar the GPU index.
+#   compact mode: nvitop draws only a MEM bar below 123 cols here, so GPU-Util
+#                 is the last thing to go: Compute M., column 2, column 1, then
+#                 GPU-Util.
+LEVELS = {
+    False: [(56, 79), (33, 56), (6, 32)],
+    True: [(65, 77), (33, 56), (6, 32), (56, 79)],
+}
+MIN_TERM_WIDTH = 20  # below this, keep nvitop's "too narrow" message
+
+
+class Elision:
+    """Position map for a set of elided spans within the 79-col table."""
+
+    def __init__(self, spans: list[tuple[int, int]]) -> None:
+        self.keep = [not any(lo <= p < hi for lo, hi in spans) for p in range(79)]
+        self.gap = self.keep.count(False)
+        self.shift = [0] * 80  # elided positions strictly left of p
+        for p in range(79):
+            self.shift[p + 1] = self.shift[p] + (not self.keep[p])
+
+    def kept(self, p: int) -> bool:
+        return p >= 79 or p < 0 or self.keep[p]
+
+    def new_x(self, p: int) -> int:
+        return p - (self.shift[p] if 0 <= p < 79 else self.gap if p >= 79 else 0)
+
+    def span(self, xr: int, n: int) -> tuple[int, list[int]]:
+        """Kept offsets of [xr, xr+n) and the mapped x of the first one."""
+        idx = [i for i in range(n) if self.kept(xr + i)]
+        return (self.new_x(xr + idx[0]) if idx else 0), idx
+
+    def unelide(self, d: str) -> str:
+        """79-char pre-image whose elision is `d`."""
+        it = iter(d)
+        return ''.join(next(it, ' ') if k else ' ' for k in self.keep)
+
+    def elide(self, line: str) -> str:
+        return ''.join(c for p, c in enumerate(line[:79]) if self.keep[p]) + line[79:]
+
+
+def merge_border(dev: str, host: str) -> str:
+    """Join the device table's bottom border with the host panel's top border."""
+    out = []
+    for c in range(max(len(dev), len(host))):
+        u = dev[c] if c < len(dev) else None
+        d = host[c] if c < len(host) else None
+        if c == 0:
+            out.append('╞')
+        elif u is None:
+            out.append('╕' if d == '╡' else '═')
+        elif d is None:
+            out.append(u)
+        elif d == '╡':
+            out.append({'╛': '╡', '╧': '╪'}.get(u, '╤'))
+        else:
+            out.append('╧' if u in '╛╧' else '═')
+    return ''.join(out)
+
+
+def patch() -> None:
+    import importlib
+
+    libcurses = importlib.import_module("nvitop.tui.library.libcurses")
+    from nvitop.tui.screens.main.panels.device import DevicePanel
+    from nvitop.tui.tui import TUI
+
+    # 1. Lift nvitop's 79-col floor. Panels other than the device table still
+    #    lay out at >=79 cols, so clip writes at the window edge (curses would
+    #    otherwise wrap them onto the next row).
+    orig_tui_draw = TUI.draw
+
+    def tui_draw(self) -> None:
+        width = self.width
+        if MIN_TERM_WIDTH <= width < 79:
+            self.width = 79
+            try:
+                orig_tui_draw(self)
+            finally:
+                self.width = width
+        else:
+            orig_tui_draw(self)
+
+    orig_addstr = libcurses.CursesShortcuts.addstr
+
+    def clipped_addstr(self, *args, **kwargs):
+        if len(args) >= 3 and isinstance(args[2], str) and self.win is not None:
+            room = self.win.getmaxyx()[1] - args[1]
+            if room <= 0:
+                return None
+            if len(args[2]) > room:
+                args = (args[0], args[1], args[2][:room], *args[3:])
+        return orig_addstr(self, *args, **kwargs)
+
+    TUI.draw = tui_draw
+    libcurses.CursesShortcuts.addstr = clipped_addstr
+
+    # 2. Device table: render at a virtual width >=100 (so nvitop draws the bar
+    #    column) and elide columns on the way to curses.
+    width_prop, compact_prop = DevicePanel.width, DevicePanel.compact
+    orig_header_lines = DevicePanel.header_lines
+    DevicePanel._el = None  # active Elision or None
+    cache: dict = {}
+
+    def elision(compact: bool, k: int) -> Elision:
+        if (compact, k) not in cache:
+            cache[compact, k] = Elision(LEVELS[compact][:k])
+        return cache[compact, k]
+
+    def set_width(self, value: int) -> None:
+        if not devices or devices[-1] is not self:
+            devices.append(self)
+        self._term_width = value
+        self._el = None
+        virtual = value
+        if getattr(self, 'device_count', 1) > 0 and value < 100:
+            compact = bool(getattr(self, '_compact', False))
+            n = len(LEVELS[compact])
+            k = next((k for k in range(1, n + 1) if value >= 100 - elision(compact, k).gap), n)
+            self._el = elision(compact, k)
+            virtual = max(100, value + self._el.gap)
+        width_prop.fset(self, virtual)
+
+    def set_compact(self, value: bool) -> None:
+        compact_prop.fset(self, value)
+        if hasattr(self, '_term_width'):
+            set_width(self, self._term_width)
+            self.need_redraw = True
+
+    def header_lines(self, compact=None):
+        lines = orig_header_lines(self, compact)
+        el = self._el
+        if el is None or self.device_count == 0:
+            return lines
+        w = 79 - el.gap
+        infos = (
+            f'NVITOP 1.7.1  Driver: {self.driver_version}  CUDA: {self.cuda_driver_version}',
+            f'NVITOP 1.7.1  CUDA: {self.cuda_driver_version}',
+            'NVITOP 1.7.1',
+            'NVITOP',
+            '',
+        )
+        info = next(i for i in infos if len(i) <= w - 4)
+        lines[0] = el.unelide('╒' + '═' * (w - 2) + '╕')
+        lines[1] = el.unelide('│ ' + info.ljust(w - 4) + ' │')
+        sep = el.elide(lines[2])
+        if sep.endswith('┬'):  # rightmost table column gone: close the row
+            lines[2] = el.unelide(sep[:-1] + '┤')
+        return lines
+
+    def visible_width(self) -> int:
+        return min(self._term_width, self.width - self._el.gap)
+
+    def addstr(self, *args, **kwargs):
+        el = self._el
+        if el is not None and len(args) >= 3 and isinstance(args[2], str):
+            y, x, text, *rest = args
+            xr = x - self.x
+            if y == self.y:  # "(Press h for help or q to quit)".rjust(79)
+                if xr == 0 and len(text) == 79:
+                    help_ = text.lstrip()
+                    self._help_x = visible_width(self) - len(help_)
+                    if self._help_x < 25:  # would collide with the clock
+                        return None
+                    x, text = self.x + self._help_x, help_
+            else:
+                x0, idx = el.span(xr, len(text))
+                if not idx:
+                    return None
+                x, text = self.x + x0, ''.join(text[i] for i in idx)
+            args = (y, x, text, *rest)
+        return super(DevicePanel, self).addstr(*args, **kwargs)
+
+    def color_at(self, y, x, width, *args, **kwargs):
+        el = self._el
+        if el is not None:
+            xr = x - self.x
+            if y == self.y:  # 'h' / 'q' highlights in the help text
+                if getattr(self, '_help_x', 0) < 25:
+                    return None
+                x = self.x + self._help_x + (xr - 48)
+            else:
+                x0, idx = el.span(xr, width)
+                if not idx:
+                    return None
+                x, width = self.x + x0, len(idx)
+        return super(DevicePanel, self).color_at(y, x, width, *args, **kwargs)
+
+    # 3. Host panel: its top edge overlays the device table's bottom border with
+    #    junctions at the stock column positions; rebuild it from the elided one.
+    from nvitop.tui.screens.main.panels.host import HostPanel
+
+    orig_host_frame_lines = HostPanel.frame_lines
+
+    def host_frame_lines(self, compact=None):
+        frame = orig_host_frame_lines(self, compact)
+        dev = devices[-1] if devices else None
+        if frame and dev is not None and dev._el is not None:
+            bottom = dev._el.elide(dev.frame_lines()[-1])
+            frame[0] = merge_border(bottom, frame[0])
+        return frame
+
+    HostPanel.frame_lines = host_frame_lines
+    devices: list = []
+
+    DevicePanel.width = width_prop.setter(set_width)
+    DevicePanel.compact = compact_prop.setter(set_compact)
+    DevicePanel.header_lines = header_lines
+    DevicePanel.addstr = addstr
+    DevicePanel.color_at = color_at
+
+
+if __name__ == '__main__':
+    import nvitop
+    from nvitop.cli import main
+
+    once = any(a in ('-1', '--once') for a in sys.argv[1:])
+    if nvitop.__version__.startswith('1.7.1') and not once and not os.environ.get('NVITOP_NO_ELIDE'):
+        patch()
+    sys.exit(main())

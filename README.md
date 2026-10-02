@@ -80,3 +80,4 @@ Shared across all three shells (installed via the Brewfiles):
 - [`fzf`](https://github.com/junegunn/fzf) — fuzzy finder: `Ctrl-R` history, `Ctrl-T` files, `Alt-C` cd (also backs zoxide's `zi`)
 - [`fd`](https://github.com/sharkdp/fd) — fast, friendly `find`
 
+- `nvitop` — wrapper around [`nvitop`](https://github.com/XuehaiPan/nvitop) (`nvitop/nvitop`, symlinked to `~/.local/bin`). Runs via `uv run --script` (pinned version, no install needed); below 100 cols it collapses the GPU table column by column (least useful first) so the MEM/UTL bars stay visible down to ~30 cols, and lifts the stock 79-col floor to 20. `NVITOP_NO_ELIDE=1` or `uvx nvitop` for stock.
