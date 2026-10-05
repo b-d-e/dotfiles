@@ -30,11 +30,12 @@ ln -s -f "$DOTFILES/zsh/.zshrc" ~/.zshrc
 ln -s -f "$DOTFILES/zsh/.zshenv" ~/.zshenv
 
 # ~/.config apps.
-# Note: symlink individual files into real dirs (not whole-dir symlinks) — an
-# `ln -sf` of a directory onto an existing dir-symlink nests inside it instead
-# of replacing it, which breaks re-runs.
+# Note: for whole-dir symlinks use `ln -sfn` — without -n, `ln -sf` of a
+# directory onto an existing dir (or dir-symlink) nests inside it instead of
+# replacing it, which breaks re-runs. Elsewhere, symlink individual files into
+# real dirs where the app writes its own state alongside the config.
 mkdir -p ~/.config
-ln -s -f "$DOTFILES/nvim" ~/.config/nvim
+ln -s -f -n "$DOTFILES/nvim" ~/.config/nvim
 ln -s -f "$DOTFILES/starship.toml" ~/.config/starship.toml
 
 # fastfetch

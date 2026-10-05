@@ -5,6 +5,7 @@ brew "atuin", restart_service: :changed
 brew "bat"
 brew "btop"
 brew "docker"
+brew "deno"            # runtime for peek.nvim markdown preview
 brew "eza"
 brew "fd"
 brew "fzf"
