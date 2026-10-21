@@ -139,6 +139,7 @@ if command -v eza >/dev/null; then
   alias lt="eza --tree --level=2 --icons"
 fi
 command -v bat >/dev/null && alias cat="bat"
+alias codex="codex --approve-for-me"
 
 # zoxide: smarter `cd` (adds `z` / `zi`).
 command -v zoxide >/dev/null && eval "$(zoxide init zsh)"

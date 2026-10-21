@@ -38,6 +38,7 @@ if status is-interactive
         alias la "eza -la --icons --git --group-directories-first"
         alias lt "eza --tree --level=2 --icons"
     end
+    alias codex "codex --approve-for-me"
     command -q bat && alias cat bat
 
     # Shell integrations (only if the tool is installed).

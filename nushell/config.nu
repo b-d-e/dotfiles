@@ -15,3 +15,4 @@ alias ll = eza -l --icons --git --group-directories-first
 alias la = eza -la --icons --git --group-directories-first
 alias lt = eza --tree --level=2 --icons
 alias cat = bat
+alias codex = ^codex --approve-for-me
