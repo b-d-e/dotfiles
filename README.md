@@ -81,3 +81,22 @@ Shared across all three shells (installed via the Brewfiles):
 - [`fd`](https://github.com/sharkdp/fd) — fast, friendly `find`
 
 - `nvitop` — wrapper around [`nvitop`](https://github.com/XuehaiPan/nvitop) (`nvitop/nvitop`, symlinked to `~/.local/bin`). Runs via `uv run --script` (pinned version, no install needed); below 100 cols it collapses the GPU table column by column (least useful first) so the MEM/UTL bars stay visible down to ~30 cols, and lifts the stock 79-col floor to 20. `NVITOP_NO_ELIDE=1` or `uvx nvitop` for stock.
+
+### AI CLIs
+
+`bootstrap.sh` installs the [OpenAI Codex CLI](https://developers.openai.com/codex/cli)
+via its official standalone installer (`utils/install-codex.sh`): a userspace
+binary in `~/.local/bin`, so it needs no root and works in `--no-sudo` mode too.
+Re-running bootstrap upgrades it. The install is non-interactive and never
+fatal — a failure warns and bootstrap carries on.
+
+Because `~/.local/bin` is already on `PATH` in all three shells, no shell config
+is touched (in particular the installer doesn't append a `PATH` block to
+`~/.zshrc`, which is a symlink into this repo). Sign in once per machine with
+`codex login`; auth lives in `~/.codex/auth.json` and is deliberately untracked.
+Skip the install with `DOTFILES_SKIP_CODEX=1`, or relocate it with
+`CODEX_INSTALL_DIR`. A `codex` already installed by brew/npm is left alone —
+remove it if you'd rather have one copy, since `PATH` order decides which runs.
+
+Claude Code's global memory comes from the [`CLAUDE.md`](https://github.com/b-d-e/CLAUDE.md)
+submodule, symlinked to `~/.claude/CLAUDE.md` (see Installation above).

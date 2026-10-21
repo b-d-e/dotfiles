@@ -211,6 +211,13 @@ fi
 # Source the cargo environment for the current session
 [ -f "$HOME/.cargo/env" ] && . "$HOME/.cargo/env"
 
+# OpenAI Codex CLI — official standalone installer into ~/.local/bin (userspace,
+# so it works with or without sudo/Homebrew). Non-interactive and non-fatal;
+# see utils/install-codex.sh. Set DOTFILES_SKIP_CODEX=1 to skip.
+echo "Installing the OpenAI Codex CLI..."
+bash ~/.dotfiles/utils/install-codex.sh \
+  || echo "Warning: Codex CLI setup failed; continuing."
+
 # Ensure git submodules are present (e.g. the CLAUDE.md global-memory repo).
 # No-op if already initialised or if cloned with --recursive.
 echo "Initialising git submodules..."
